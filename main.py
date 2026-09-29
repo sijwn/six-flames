@@ -10,6 +10,7 @@ def is_same_tile(t1, t2):
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
 def evaluate_hand(tiles, is_incidental=False):
+    """6개 타일 기준 역 판정 (기본점수, 별개수 분리 반환)"""
     if len(tiles) != 6:
         return None
 
@@ -19,32 +20,40 @@ def evaluate_hand(tiles, is_incidental=False):
     all_nums = set(tops + bottoms)
 
     best_name = None
-    best_score = -1
+    best_base = -1
+    best_stars = 0
 
+    # 1. 휘광 (5점, 보너스 없음)[cite: 2]
     if star_count == 6:
-        if 5 > best_score:
+        if 5 > best_base:
             best_name = "휘광"
-            best_score = 5
+            best_base = 5
+            best_stars = 0
 
+    # 2. 육화 (6점 + 별보너스)[cite: 1]
     if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
-        score = 6 + star_count
-        if score > best_score:
+        if 6 > best_base:
             best_name = "육화"
-            best_score = score
+            best_base = 6
+            best_stars = star_count
 
+    # 3. 삼동 (5점 + 별보너스)[cite: 2]
     for p in permutations(tiles):
         if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
-            score = 5 + star_count
-            if score > best_score:
+            if 5 > best_base:
                 best_name = "삼동"
-                best_score = score
+                best_base = 5
+                best_stars = star_count
             break
 
+    # 4. 삼색 (3점, 보너스 없음) - 겸사겸사 완성 전용[cite: 2]
     if is_incidental and len(all_nums) <= 3:
-        if 3 > best_score:
+        if 3 > best_base:
             best_name = "삼색"
-            best_score = 3
+            best_base = 3
+            best_stars = 0
 
+    # 5. 삼연 (3점 + 별보너스)[cite: 1]
     for s1_idx in combinations(range(6), 3):
         s2_idx = [i for i in range(6) if i not in s1_idx]
         s1 = [tiles[i] for i in s1_idx]
@@ -59,20 +68,26 @@ def evaluate_hand(tiles, is_incidental=False):
         seq2 = (len(st2) == 3 and st2[0] + 1 == st2[1] and st2[1] + 1 == st2[2])
 
         if c1 and seq1 and c2 and seq2:
-            score = 3 + star_count
-            if score > best_score:
+            if 3 > best_base:
                 best_name = "삼연"
-                best_score = score
+                best_base = 3
+                best_stars = star_count
             break
 
+    # 6. 일색 (1점 + 별보너스)[cite: 1]
     if len(set(bottoms)) == 1:
-        score = 1 + star_count
-        if score > best_score:
+        if 1 > best_base:
             best_name = "일색"
-            best_score = score
+            best_base = 1
+            best_stars = star_count
 
     if best_name:
-        return {"name": best_name, "score": best_score, "stars": star_count}
+        return {
+            "name": best_name,
+            "base_score": best_base,
+            "stars": best_stars,
+            "total_score": best_base + best_stars
+        }
     return None
 
 def check_can_riichi(hand_5):
@@ -93,8 +108,9 @@ def check_incidental_win(hand_5, discards):
                 tile["top"], tile["bottom"] = tile["bottom"], tile["top"]
             res = evaluate_hand(hand_5 + [tile], is_incidental=True)
             if res:
-                if best is None or res["score"] > best["score"]:
+                if best is None or res["total_score"] > best["total_score"]:
                     best = res
+                    best["winning_tile"] = tile
     return best
 
 class SixFlamesGame:
@@ -126,8 +142,7 @@ class SixFlamesGame:
         self.current_turn = self.starter
         self.turn_phase = "lobby" if not self.game_started else "draw"
         self.round_winner = None
-        self.win_reason = ""
-        self.incidental_result = None
+        self.round_settlement = [] # 라운드 종료 시 점수 정산 상세 내역
         self.last_drawn_id = {1: None, 2: None}
         self.last_discard = None
         self.ready = {1: False, 2: False}
@@ -169,7 +184,7 @@ class SixFlamesGame:
         else:
             if not self.deck:
                 self.turn_phase = "round_end"
-                self.win_reason = "유국 (패산 소진)"
+                self.round_settlement.append({"player": 0, "text": "유국 (패산 소진으로 무승부)"})
                 self.check_round_end_incidentals(winner_num=None)
                 return True
             tile = self.deck.pop()
@@ -177,13 +192,13 @@ class SixFlamesGame:
         self.players[p_num].append(tile)
         self.last_drawn_id[p_num] = tile["id"]
         self.turn_phase = "discard"
-        # 패를 뽑아도 타이머를 리셋하지 않고 남은 시간을 그대로 소진함
         return True
 
     def discard_tile(self, p_num, tile_id, declare_riichi=False):
         if self.current_turn != p_num or self.turn_phase != "discard":
             return False
 
+        # 리치 상태일 때는 이번에 주운/뽑은 패만 버릴 수 있음[cite: 2]
         if self.riichi[p_num] and tile_id != self.last_drawn_id[p_num]:
             return False
 
@@ -215,13 +230,10 @@ class SixFlamesGame:
         self.reset_timer()
 
     def handle_timeout(self):
-        """제한시간 초과 시 처리 로직"""
         p = self.current_turn
         if self.turn_phase == "draw":
-            # 패를 안 뽑은 상태면 아무것도 하지 않고 즉시 턴 넘김
             self.pass_turn()
         elif self.turn_phase == "discard":
-            # 패를 뽑은 상태면 방금 뽑은 패를 즉시 바닥으로 내려놓고 턴 넘김
             tid_to_discard = self.last_drawn_id.get(p)
             hand = self.players[p]
             target = next((t for t in hand if t["id"] == tid_to_discard), None)
@@ -240,10 +252,23 @@ class SixFlamesGame:
             return False
         res = evaluate_hand(self.players[p_num], is_incidental=False)
         if res:
-            pts = res["score"] + (1 if self.riichi[p_num] else 0)
-            self.scores[p_num] += pts
+            base = res["base_score"]
+            stars = res["stars"]
+            riichi_pt = 1 if self.riichi[p_num] else 0[cite: 2]
+            total = base + stars + riichi_pt
+            self.scores[p_num] += total
             self.round_winner = p_num
-            self.win_reason = f"완성(쯔모)! [{res['name']}] +{pts}점"
+
+            # 점수 분해 텍스트
+            detail = f"{res['name']}({base}점)"
+            if stars > 0: detail += f" + 별보너스({stars}점)"[cite: 1]
+            if riichi_pt > 0: detail += " + 리치(1점)"[cite: 2]
+
+            self.round_settlement = [{
+                "player": p_num,
+                "type": "쯔모",
+                "text": f"[{p_num}P 쯔모 완성] {detail} = 총 {total}점 획득"
+            }]
             self.check_round_end_incidentals(winner_num=p_num)
             self.end_round()
             return True
@@ -252,18 +277,35 @@ class SixFlamesGame:
     def declare_ron(self, p_num, mode="steal"):
         if self.turn_phase != "ron_wait": return False
         opp = 2 if p_num == 1 else 1
-        res = evaluate_hand(self.players[p_num] + [self.last_discard], is_incidental=False)
+        
+        # 바닥에 버려진 패를 론 선언자의 손패로 합류시켜 6장 완성[cite: 2]
+        winning_tile = self.last_discard
+        if winning_tile in self.discards:
+            self.discards.remove(winning_tile)
+        self.players[p_num].append(winning_tile)
+
+        res = evaluate_hand(self.players[p_num], is_incidental=False)
         if res:
-            pts = res["score"] + (1 if self.riichi[p_num] else 0)
+            base = res["base_score"]
+            stars = res["stars"]
+            riichi_pt = 1 if self.riichi[p_num] else 0[cite: 2]
+            total = base + stars + riichi_pt
+
+            detail = f"{res['name']}({base}점)"
+            if stars > 0: detail += f" + 별보너스({stars}점)"[cite: 1]
+            if riichi_pt > 0: detail += " + 리치(1점)"[cite: 2]
+
             if mode == "steal":
-                stolen = min(self.scores[opp], pts)
+                stolen = min(self.scores[opp], total)[cite: 2]
                 self.scores[opp] -= stolen
                 self.scores[p_num] += stolen
-                self.win_reason = f"론(강탈)! [{res['name']}] 상대 점수 {stolen}점 강탈 (기본 {pts}점)"
+                desc = f"[{p_num}P 론(강탈)] {detail} = {opp}P에게서 {stolen}점 강탈 (기본 점수: {total}점)"[cite: 2]
             else:
-                self.scores[p_num] += pts
-                self.win_reason = f"공급처 완성! [{res['name']}] +{pts}점 획득"
+                self.scores[p_num] += total
+                desc = f"[{p_num}P 완성] {detail} = 공급처로부터 총 {total}점 획득"
+
             self.round_winner = p_num
+            self.round_settlement = [{"player": p_num, "type": "론", "text": desc}]
             self.end_round()
             return True
         return False
@@ -275,17 +317,33 @@ class SixFlamesGame:
         return False
 
     def check_round_end_incidentals(self, winner_num):
-        self.incidental_result = {}
+        """겸사겸사 완성자 검사 및 바닥패를 손패로 합류[cite: 1]"""
         for p in [1, 2]:
             if p != winner_num and len(self.players[p]) == 5:
                 res = check_incidental_win(self.players[p], self.discards)
                 if res:
-                    pts = res["score"] + (1 if self.riichi[p] else 0)
-                    self.scores[p] += pts
-                    self.incidental_result[p] = {"name": res["name"], "score": pts}
+                    # 바닥 패를 손패로 합류시켜 6장 완성패 보여줌
+                    wt = res["winning_tile"]
+                    self.players[p].append(wt)
+                    
+                    base = res["base_score"]
+                    stars = res["stars"]
+                    riichi_pt = 1 if self.riichi[p] else 0[cite: 2]
+                    total = base + stars + riichi_pt
+                    self.scores[p] += total
+
+                    detail = f"{res['name']}({base}점)"
+                    if stars > 0: detail += f" + 별보너스({stars}점)"[cite: 1]
+                    if riichi_pt > 0: detail += " + 리치(1점)"[cite: 2]
+
+                    self.round_settlement.append({
+                        "player": p,
+                        "type": "겸사겸사",
+                        "text": f"[{p}P 겸사겸사 완성] {detail} = 총 {total}점 획득"[cite: 1]
+                    })
 
     def end_round(self):
-        if self.scores[1] >= self.target_score or self.scores[2] >= self.target_score:
+        if self.scores[1] >= self.target_score or self.scores[2] >= self.target_score:[cite: 1]
             self.turn_phase = "game_over"
         else:
             self.turn_phase = "round_end"
@@ -329,8 +387,7 @@ async def broadcast_state():
             "scores": game.scores,
             "riichi": game.riichi,
             "winner": game.round_winner,
-            "win_reason": game.win_reason,
-            "incidental_result": game.incidental_result,
+            "settlements": game.round_settlement,
             "can_ron": can_ron,
             "can_tsumo": can_tsumo,
             "can_riichi": can_riichi,
