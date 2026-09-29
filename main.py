@@ -1,10 +1,9 @@
 import random
 import asyncio
+from contextlib import asynccontextmanager
 from itertools import combinations, permutations
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
-
-app = FastAPI()
 
 def is_same_tile(t1, t2):
     return (t1["top"] == t2["top"] and t1["bottom"] == t2["bottom"]) or \
@@ -23,7 +22,7 @@ def evaluate_hand(tiles, is_incidental=False):
     best_name = None
     best_score = -1
 
-    # 1. 휘광 (5점, 별보너스 없음)
+    # 1. 휘광 (5점)
     if star_count == 6:
         if 5 > best_score:
             best_name = "휘광"
@@ -45,7 +44,7 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_score = score
             break
 
-    # 4. 삼색 (3점, 별보너스 없음) - '겸사겸사 완성'으로만 완성 선언 가능
+    # 4. 삼색 (3점) - 겸사겸사 완성 전용
     if is_incidental and len(all_nums) <= 3:
         if 3 > best_score:
             best_name = "삼색"
@@ -84,7 +83,6 @@ def evaluate_hand(tiles, is_incidental=False):
     return None
 
 def check_can_riichi(hand_5):
-    """5장 상태에서 텐파이 가능 여부 (플립 고려)"""
     for t in range(1, 7):
         for b in range(t, 7):
             fake1 = {"id": "fake", "top": t, "bottom": b, "is_double": (t == b)}
@@ -94,7 +92,6 @@ def check_can_riichi(hand_5):
     return False
 
 def check_incidental_win(hand_5, discards):
-    """상대방 5장 손패와 바닥 패 중 하나를 조합해 겸사겸사 완성 확인"""
     best = None
     for d in discards:
         for flipped in [False, True]:
@@ -110,13 +107,12 @@ def check_incidental_win(hand_5, discards):
 class SixFlamesGame:
     def __init__(self):
         self.target_score = 10
-        self.time_limit = 60 # 초 단위 (0 = 무제한)
+        self.time_limit = 60
         self.time_left = 60
         self.scores = {1: 0, 2: 0}
         self.starter = random.choice([1, 2])
         self.ready = {1: False, 2: False}
         self.game_started = False
-        self.timer_task = None
         self.reset_round()
 
     def reset_round(self):
@@ -157,6 +153,15 @@ class SixFlamesGame:
             if t["id"] == tile_id:
                 t["top"], t["bottom"] = t["bottom"], t["top"]
                 return True
+        return False
+
+    def reorder_tiles(self, p_num, order_ids):
+        hand = self.players[p_num]
+        id_map = {t["id"]: t for t in hand}
+        new_hand = [id_map[tid] for tid in order_ids if tid in id_map]
+        if len(new_hand) == len(hand):
+            self.players[p_num] = new_hand
+            return True
         return False
 
     def draw_tile(self, p_num, discard_id=None):
@@ -216,6 +221,37 @@ class SixFlamesGame:
         self.turn_phase = "draw"
         self.reset_timer()
 
+    def handle_timeout(self):
+        """제한시간 초과 시 자동 행동 강제 집행"""
+        p = self.current_turn
+        if self.turn_phase == "draw":
+            # 1. 패를 뽑지 않은 상태면 덱에서 뽑고 바로 그 패를 버려 턴 넘김
+            if self.deck:
+                drawn = self.deck.pop()
+                self.discards.append(drawn)
+                self.last_discard = drawn
+            else:
+                self.turn_phase = "round_end"
+                self.win_reason = "유국 (패산 소진)"
+                self.check_round_end_incidentals(winner_num=None)
+                return
+            self.pass_turn()
+        elif self.turn_phase == "discard":
+            # 2. 이미 패를 뽑은 상태면, 이번에 뽑은 패를 버림 (없으면 손패 마지막 패 버림)
+            tid_to_discard = self.last_drawn_id.get(p)
+            hand = self.players[p]
+            target = next((t for t in hand if t["id"] == tid_to_discard), None)
+            if not target and hand:
+                target = hand[-1]
+            if target:
+                hand.remove(target)
+                self.discards.append(target)
+                self.last_discard = target
+            self.pass_turn()
+        elif self.turn_phase == "ron_wait":
+            # 3. 론 대기 상태에서 시간 초과 시 자동 패스
+            self.pass_turn()
+
     def declare_tsumo(self, p_num):
         if self.current_turn != p_num or self.turn_phase != "discard":
             return False
@@ -231,7 +267,6 @@ class SixFlamesGame:
         return False
 
     def declare_ron(self, p_num, mode="steal"):
-        """mode: 'steal' (상대 점수 강탈) 또는 'direct' (공급처 완성)"""
         if self.turn_phase != "ron_wait": return False
         opp = 2 if p_num == 1 else 1
         res = evaluate_hand(self.players[p_num] + [self.last_discard], is_incidental=False)
@@ -257,7 +292,6 @@ class SixFlamesGame:
         return False
 
     def check_round_end_incidentals(self, winner_num):
-        """쯔모 또는 유국 시 다른 사람들의 겸사겸사 완성 계산"""
         self.incidental_result = {}
         for p in [1, 2]:
             if p != winner_num and len(self.players[p]) == 5:
@@ -276,29 +310,6 @@ class SixFlamesGame:
 
 connections = {}
 game = SixFlamesGame()
-
-async def timer_loop():
-    while True:
-        await asyncio.sleep(1)
-        if game.game_started and game.turn_phase in ["draw", "discard", "ron_wait"] and game.time_limit > 0:
-            game.time_left -= 1
-            if game.time_left <= 0:
-                # 시간 초과 자동 행동 처리
-                p = game.current_turn
-                if game.turn_phase == "draw":
-                    game.draw_tile(p)
-                elif game.turn_phase == "discard":
-                    if game.last_drawn_id[p]:
-                        game.discard_tile(p, game.last_drawn_id[p])
-                    elif game.players[p]:
-                        game.discard_tile(p, game.players[p][-1]["id"])
-                elif game.turn_phase == "ron_wait":
-                    game.skip_ron()
-            await broadcast_state()
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(timer_loop())
 
 async def broadcast_state():
     for p_num, ws in list(connections.items()):
@@ -351,6 +362,28 @@ async def broadcast_state():
         except Exception:
             pass
 
+async def timer_background_task():
+    while True:
+        try:
+            await asyncio.sleep(1)
+            # 게임이 진행 중이고 무제한(0)이 아닐 때만 카운트다운
+            if game.game_started and game.turn_phase in ["draw", "discard", "ron_wait"] and game.time_limit > 0:
+                game.time_left -= 1
+                if game.time_left <= 0:
+                    game.handle_timeout()
+                await broadcast_state()
+        except Exception:
+            pass
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 서버 기동 시 타이머 백그라운드 태스크 보장
+    task = asyncio.create_task(timer_background_task())
+    yield
+    task.cancel()
+
+app = FastAPI(lifespan=lifespan)
+
 @app.get("/")
 def get_index():
     return FileResponse("index.html")
@@ -387,6 +420,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     await broadcast_state()
             elif act == "flip":
                 if game.flip_tile(p_num, data.get("tile_id")):
+                    await broadcast_state()
+            elif act == "reorder":
+                if game.reorder_tiles(p_num, data.get("order", [])):
                     await broadcast_state()
             elif act == "draw":
                 if game.draw_tile(p_num, discard_id=data.get("discard_id")):
