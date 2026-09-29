@@ -2,6 +2,7 @@ import random
 import asyncio
 from contextlib import asynccontextmanager
 from itertools import combinations, permutations
+from collections import Counter
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
@@ -136,7 +137,7 @@ def check_incidental_win(hand_5, discards):
 
 class GameSession:
     def __init__(self, mode="single", ai_diff="mid"):
-        self.mode = mode # "single" or "multi"
+        self.mode = mode
         self.ai_diff = ai_diff
         self.target_score = 10
         self.time_limit = 60
@@ -358,37 +359,77 @@ class GameSession:
             self.turn_phase = "round_end"
             self.starter = 2 if self.starter == 1 else 1
 
-    # --- AI 대기패 계산 및 전략 지능 ---
+    # --- 전략적 AI 평가 알고리즘 ---
     def calculate_hand_outs(self, hand_5):
-        """남은 5장 패에 1장이 들어왔을 때 역이 완성되는 유효 타일 목록 계산"""
+        """남은 5장에 어떤 타일이 들어오면 역이 완성되는지 모든 유효타 반환"""
         valid_outs = []
         for top in range(1, 7):
             for btm in range(top, 7):
                 t1 = {"id": "sim", "top": top, "bottom": btm, "is_double": (top == btm)}
                 t2 = {"id": "sim", "top": btm, "bottom": top, "is_double": (top == btm)}
-                if evaluate_hand(hand_5 + [t1], is_incidental=False) or evaluate_hand(hand_5 + [t2], is_incidental=False):
-                    valid_outs.append((top, btm))
+                r1 = evaluate_hand(hand_5 + [t1], is_incidental=False)
+                r2 = evaluate_hand(hand_5 + [t2], is_incidental=False)
+                if r1 or r2:
+                    score = (r1["total_score"] if r1 else 0) or (r2["total_score"] if r2 else 0)
+                    valid_outs.append((top, btm, score))
         return valid_outs
 
     def count_remaining_outs(self, p_num, valid_outs):
-        """유효 대기패 중 바닥패와 내 손패를 제외하고 실제 덱/상대패에 살아있는 실질 매수 계산"""
+        """유효타 중 실제 게임(패산+상대패)에 살아있는 매수 및 점수 기댓값"""
         total_remaining = 0
+        total_score_pot = 0
         known_tiles = self.players[p_num] + self.discards
-        for (top, btm) in valid_outs:
-            total_in_game = 2
+        for (top, btm, score) in valid_outs:
             used = sum(1 for t in known_tiles if (t["top"] == top and t["bottom"] == btm) or (t["top"] == btm and t["bottom"] == top))
-            remain = max(0, total_in_game - used)
+            remain = max(0, 2 - used)
             total_remaining += remain
-        return total_remaining
+            total_score_pot += (remain * score)
+        return total_remaining, total_score_pot
+
+    def evaluate_hand_potential(self, hand, opponent_riichi=False):
+        """현재 패(5장 혹은 6장)의 역 지향성 및 잠재력 종합 평가"""
+        if not hand: return 0
+
+        # 최적 위/아래 플립 맞춤
+        best_pot = 0
+        star_count = sum(1 for t in hand if t["is_double"])
+        bottom_counts = Counter(t["bottom"] for t in hand)
+        top_counts = Counter(t["top"] for t in hand)
+
+        # 1. 상대방이 리치 상태라면: 빠른 1점 완성(일색/동형)에 극단적 가중치
+        if opponent_riichi:
+            max_same_bottom = max(bottom_counts.values()) if bottom_counts else 0
+            return max_same_bottom * 15 + star_count * 2
+
+        # 2. 일반 상황: 고득점 역 잠재력 점수화
+        # 휘광(별 6개) 가능성
+        if star_count >= 3:
+            best_pot += star_count * 12
+
+        # 일색 및 육화(아래 동일) 가능성
+        max_same_bottom = max(bottom_counts.values()) if bottom_counts else 0
+        best_pot += max_same_bottom * 8
+
+        # 삼동(페어) 가능성
+        pairs = 0
+        for i in range(len(hand)):
+            for j in range(i + 1, len(hand)):
+                if is_same_tile(hand[i], hand[j]):
+                    pairs += 1
+        best_pot += pairs * 10
+
+        return best_pot
 
     async def run_ai_turn(self):
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(0.7)
         if not self.game_started or self.current_turn != 2:
             return
 
-        # 1. Draw 단계
+        opp_riichi = self.riichi[1]
+
+        # 1. DRAW 단계
         if self.turn_phase == "draw":
-            # 론 검사
+            # 1-1. 론(직격) 완성 체크
             if self.last_discard:
                 for fl in [False, True]:
                     t_cand = dict(self.last_discard)
@@ -397,75 +438,103 @@ class GameSession:
                         self.declare_ron(2, mode="steal")
                         return
 
-            # 바닥 패 가져오기 (완성 가능하거나 주요 패인 경우)
+            # 1-2. 바닥 패 가져오기 탐색
             picked_from_floor = False
-            if self.ai_diff in ["mid", "high"] and self.discards:
-                for disc in reversed(self.discards[-3:]):
+            if self.discards:
+                current_pot = self.evaluate_hand_potential(self.players[2], opponent_riichi=opp_riichi)
+                candidates = []
+
+                # 난이도별 바닥 탐색 깊이
+                search_depth = 2 if self.ai_diff == "low" else (5 if self.ai_diff == "mid" else len(self.discards))
+                for disc in reversed(self.discards[-search_depth:]):
                     for fl in [False, True]:
                         cand = dict(disc)
                         if fl: cand["top"], cand["bottom"] = cand["bottom"], cand["top"]
-                        if evaluate_hand(self.players[2] + [cand], is_incidental=False):
-                            self.draw_tile(2, discard_id=disc["id"])
-                            picked_from_floor = True
+                        # 가져왔을 때 즉시 역이 완성되거나 패의 질이 크게 개선되는지 평가
+                        test_hand_6 = self.players[2] + [cand]
+                        if evaluate_hand(test_hand_6, is_incidental=False):
+                            candidates.append((999, disc["id"])) # 즉시 완성
                             break
-                    if picked_from_floor: break
+
+                        # 완성은 아니어도 잠재력이 대폭 상승하는지 비교
+                        pot_diff = self.evaluate_hand_potential(test_hand_6, opponent_riichi=opp_riichi) - current_pot
+                        if pot_diff >= (10 if self.ai_diff == "high" else 14):
+                            candidates.append((pot_diff, disc["id"]))
+                            break
+
+                if candidates:
+                    # 초급은 40% 확률로만 주움, 중/고급은 최적의 바닥패 확정 수거
+                    if self.ai_diff != "low" or random.random() < 0.4:
+                        candidates.sort(key=lambda x: x[0], reverse=True)
+                        best_discard_id = candidates[0][1]
+                        self.draw_tile(2, discard_id=best_discard_id)
+                        picked_from_floor = True
 
             if not picked_from_floor:
                 self.draw_tile(2, discard_id=None)
 
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(0.7)
         if not self.game_started or self.current_turn != 2:
             return
 
-        # 2. Discard 단계
+        # 2. DISCARD 단계
         if self.turn_phase == "discard":
-            # 쯔모 완성 체크
+            # 2-1. 쯔모 완성 체크
             if evaluate_hand(self.players[2], is_incidental=False):
                 self.declare_tsumo(2)
                 return
 
             hand = self.players[2]
 
-            # 리치 상태인 경우 뽑은 패 강제 버림
+            # 리치 상태면 뽑은 패 고정 버림
             if self.riichi[2]:
                 chosen = next((t for t in hand if t["id"] == self.last_drawn_id[2]), hand[-1])
                 self.discard_tile(2, chosen["id"], declare_riichi=False)
                 return
 
+            # 2-2. 6장 중 어떤 패를 버릴지 정밀 비교
             best_tile = None
             should_riichi = False
 
             if self.ai_diff == "low":
-                # 하급: 엉뚱한 패 버림, 리치 없음
+                # 초급: 완전 무작위 대신 손패의 고립패 위주 방출
                 chosen = random.choice(hand)
                 declare_r = False
             else:
-                # 중급/고급: 6장 중 어떤 패를 버려야 가장 많은 유효 대기패가 살아남는지 정밀 시뮬레이션
                 candidates = []
                 for t in hand:
                     remain_5 = [x for x in hand if x["id"] != t["id"]]
                     outs = self.calculate_hand_outs(remain_5)
-                    live_outs_count = self.count_remaining_outs(2, outs)
+                    live_outs_count, score_pot = self.count_remaining_outs(2, outs)
+                    potential = self.evaluate_hand_potential(remain_5, opponent_riichi=opp_riichi)
+
+                    # 가중치 계산
+                    eval_score = (live_outs_count * 20) + (score_pot * 2) + potential
                     
-                    # 가중치: 살아있는 대기패 매수 + 손패에 보존할 별(더블) 타일 가치
-                    score = live_outs_count * 10
+                    # 상대가 리치라면? 안전패(바닥에 이미 많이 버려진 숫자) 방출 가산점
+                    if opp_riichi:
+                        safety = sum(1 for d in self.discards if d["top"] == t["top"] or d["bottom"] == t["bottom"])
+                        eval_score += safety * 8
+
                     if t["is_double"]:
-                        score -= 3  # 별 타일은 웬만하면 버리지 않도록 페널티
-                    candidates.append((score, live_outs_count, t))
+                        eval_score -= 4 # 별 패 보존
+
+                    candidates.append((eval_score, live_outs_count, t))
 
                 candidates.sort(key=lambda x: x[0], reverse=True)
                 best_score, best_live_outs, chosen = candidates[0]
 
-                # 신중한 리치 조건 (실제 대기패가 살아있을 때만)
+                # 신중한 리치 조건 (상대 리치 시에는 확실할 때만)
                 if not self.riichi[2]:
-                    if self.ai_diff == "mid":
+                    if opp_riichi:
+                        should_riichi = (best_live_outs >= 3)
+                    elif self.ai_diff == "mid":
                         should_riichi = (best_live_outs >= 2)
                     elif self.ai_diff == "high":
-                        should_riichi = (best_live_outs >= 3)
+                        should_riichi = (best_live_outs >= 2 and best_score >= 35)
 
             self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
 
-# --- 세션 관리 및 통신 구조 ---
 multi_game = GameSession(mode="multi")
 multi_connections = {}
 single_sessions = {}
@@ -534,7 +603,7 @@ async def timer_background_task():
                     multi_game.handle_timeout()
                 await broadcast_multi()
 
-            # 1인 모드 타이머 및 AI 실행
+            # 1인 모드 타이머 및 AI 동작
             for ws, s_game in list(single_sessions.items()):
                 if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
                     s_game.time_left -= 1
