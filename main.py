@@ -103,15 +103,15 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_stars = star_count
             break
 
-    # 9. 동형 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 1개, 2개, 3개 (예: A, BB, CCC)
-    top_counts = sorted(Counter(tops).values())
-    if top_counts == [1, 2, 3]:
+    # 9. 동형 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 정확히 1이 1개, 2가 2개, 3이 3개 [1, 2, 2, 3, 3, 3]
+    if sorted(tops) == [1, 2, 2, 3, 3, 3]:
         if 1 > best_base:
             best_name = "동형"
             best_base = 1
             best_stars = star_count
 
     # 10. 삼군 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 2개씩 3쌍 (AABBCC)
+    top_counts = sorted(Counter(tops).values())
     if top_counts == [2, 2, 2]:
         if 1 > best_base:
             best_name = "삼군"
