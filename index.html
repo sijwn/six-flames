@@ -45,7 +45,7 @@
     .tile.selectable-discard { border: 2px dashed #4ade80 !important; cursor: pointer !important; }
     .tile.selectable-discard:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 0 12px #4ade80; }
 
-    /* 타일 보조 버튼들 */
+    /* 타일 제어 버튼들 */
     .tile-ctrl-btn {
       position: absolute; top: 0; background: #334155; color: #cbd5e1;
       border: 1px solid #64748b; border-radius: 4px; width: 14px; height: 14px;
@@ -132,7 +132,7 @@
       <div class="discards-box" id="discards"></div>
 
       <div class="action-panel">
-        <button id="btn-draw" onclick="actionDraw(null)" disabled>패산</button>
+        <button id="btn-draw" onclick="actionDraw(null)" disabled>패 뽑기</button>
         <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
         <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
       </div>
@@ -238,7 +238,7 @@
         document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
       } else if (isMyTurn) {
         if (currentPhase === 'draw') {
-          document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패산]을 뽑거나 바닥 패를 클릭하세요</span>`;
+          document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
         } else {
           document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
         }
@@ -286,7 +286,7 @@
         }
       }
 
-      // 내 손패 렌더링 (순서 이동 및 드래그 앤 드롭 지원)
+      // 내 손패 렌더링
       const myHandDiv = document.getElementById('my-hand');
       myHandDiv.innerHTML = '';
       currentHand.forEach((t, idx) => {
@@ -297,7 +297,6 @@
         wrap.className = 'tile-wrap';
         wrap.draggable = true;
 
-        // 드래그 앤 드롭 순서 변경
         wrap.ondragstart = (e) => { draggedTileId = t.id; };
         wrap.ondragover = (e) => { e.preventDefault(); };
         wrap.ondrop = (e) => {
@@ -307,7 +306,6 @@
           }
         };
 
-        // 좌우 이동 버튼
         const leftBtn = document.createElement('div');
         leftBtn.className = 'tile-ctrl-btn btn-move-left';
         leftBtn.innerText = '◀';
@@ -320,7 +318,6 @@
         rightBtn.title = '오른쪽으로 이동';
         rightBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, 1); };
 
-        // 플립 버튼
         const flipBtn = document.createElement('div');
         flipBtn.className = 'tile-ctrl-btn btn-flip';
         flipBtn.innerText = '↻';
