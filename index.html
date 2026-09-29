@@ -45,7 +45,6 @@
     .tile.selectable-discard { border: 2px dashed #4ade80 !important; cursor: pointer !important; }
     .tile.selectable-discard:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 0 12px #4ade80; }
 
-    /* 타일 제어 버튼들 */
     .tile-ctrl-btn {
       position: absolute; top: 0; background: #334155; color: #cbd5e1;
       border: 1px solid #64748b; border-radius: 4px; width: 14px; height: 14px;
@@ -74,6 +73,11 @@
     .yaku-badge { background: #10b981; color: white; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold; display: inline-block; margin-bottom: 8px; }
     .discards-box { background: #0f172a; border-radius: 8px; padding: 8px; min-height: 85px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
     .sec-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin-top: 10px; }
+
+    /* 결과 정산 리스트 */
+    .settlement-card { background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 8px 12px; margin: 6px 0; text-align: left; font-size: 14px; }
+    .settlement-card.win { border-left-color: #4ade80; }
+    .settlement-card.incidental { border-left-color: #facc15; }
   </style>
 </head>
 <body>
@@ -122,7 +126,7 @@
 
       <div id="status-bar" style="text-align:center; font-weight:bold; margin: 10px 0;">접속 대기 중...</div>
 
-      <div class="sec-label">상대방 패</div>
+      <div class="sec-label">상대방 패 <span id="opp-hand-label"></span></div>
       <div class="hand-container" id="opp-hand"></div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin: 6px 0;">
@@ -137,10 +141,11 @@
         <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
       </div>
 
+      <!-- 론 모달 (문구 수정) -->
       <div id="ron-modal" style="display:none; text-align:center; margin: 10px 0; background: #334155; padding: 12px; border-radius: 8px;">
         <div style="color:#facc15; font-weight:bold; margin-bottom: 8px;">상대 버림패로 완성 가능!</div>
         <button class="btn-ron" onclick="actionRon('steal')">론 선언 (상대 점수 강탈)</button>
-        <button class="btn-win" onclick="actionRon('direct')" style="margin-left:6px;">공급처 완성 (점수 획득)</button>
+        <button class="btn-win" onclick="actionRon('direct')" style="margin-left:6px;">완성 선언 (점수 획득)</button>
         <button onclick="actionSkipRon()" style="background:#64748b; margin-left:6px;">패스</button>
       </div>
 
@@ -153,11 +158,14 @@
       <div class="sec-label">내 손패 (패 클릭: 버리기 | ◀, ▶ / 드래그: 순서 이동 | ↻: 위아래 뒤집기)</div>
       <div class="hand-container" id="my-hand"></div>
 
-      <div id="ready-panel" style="display:none; text-align:center; margin-top: 15px; background: #0f172a; padding: 15px; border-radius: 10px;">
-        <div id="win-desc" style="font-size: 16px; font-weight: bold; color: #4ade80; margin-bottom: 6px;"></div>
-        <div id="incidental-desc" style="font-size: 14px; color: #38bdf8; margin-bottom: 12px;"></div>
-        <button id="btn-ready" onclick="actionNextReady()" style="background:#10b981; font-size: 15px; padding: 10px 24px;">다음 판 준비</button>
-        <div id="ready-status" style="font-size: 12px; color: #94a3b8; margin-top: 6px;"></div>
+      <!-- 라운드 결과 & 정산 패널 -->
+      <div id="ready-panel" style="display:none; margin-top: 15px; background: #0f172a; padding: 16px; border-radius: 10px;">
+        <h3 style="margin-top:0; text-align:center; color:#facc15;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
+        <div id="settlement-list" style="margin-bottom: 14px;"></div>
+        <div style="text-align:center;">
+          <button id="btn-ready" onclick="actionNextReady()" style="background:#10b981; font-size: 15px; padding: 10px 24px;">다음 판 준비</button>
+          <div id="ready-status" style="font-size: 12px; color: #94a3b8; margin-top: 6px;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -191,6 +199,12 @@
       myRiichiActive = data.riichi[myPlayer];
       lastDrawnId = data.last_drawn_id;
       currentHand = data.my_hand || [];
+
+      // 라운드가 새로 시작되었으면 로컬 리치 펜딩 초기화
+      if (currentPhase === 'draw' && !myRiichiActive) {
+        riichiPending = false;
+        document.getElementById('btn-riichi').style.outline = 'none';
+      }
 
       if (!data.game_started) {
         document.getElementById('lobby-panel').style.display = 'block';
@@ -249,9 +263,16 @@
       document.getElementById('deck-count').innerText = data.deck_count;
       document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
 
+      // 리치 버튼 표시 복구 및 비활성화 제어
       const btnRiichi = document.getElementById('btn-riichi');
-      btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard' && data.can_riichi);
-      if (myRiichiActive) btnRiichi.style.display = 'none';
+      btnRiichi.style.display = 'inline-block';
+      if (myRiichiActive) {
+        btnRiichi.disabled = true;
+        btnRiichi.innerText = '리치 완료';
+      } else {
+        btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard' && data.can_riichi);
+        btnRiichi.innerText = '리치 선언';
+      }
 
       document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
       document.getElementById('ron-modal').style.display = data.can_ron ? 'block' : 'none';
@@ -259,7 +280,7 @@
       const yakuBadge = document.getElementById('yaku-badge');
       if (data.current_yaku) {
         yakuBadge.style.display = 'inline-block';
-        yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.score}점, ★ ${data.current_yaku.stars}개)`;
+        yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.base_score}점 + ★ ${data.current_yaku.stars}개)`;
       } else {
         yakuBadge.style.display = 'none';
       }
@@ -276,11 +297,14 @@
         discardsDiv.appendChild(tileEl);
       });
 
+      // 상대방 패 렌더링 (라운드 종료 시 6장 전체 앞면 공개)
       const oppHandDiv = document.getElementById('opp-hand');
       oppHandDiv.innerHTML = '';
       if (data.show_all && data.opp_hand) {
+        document.getElementById('opp-hand-label').innerText = `(${data.opp_hand.length}장 공개)`;
         data.opp_hand.forEach(t => oppHandDiv.appendChild(createTileEl(t, false, false, false, false)));
       } else {
+        document.getElementById('opp-hand-label').innerText = '';
         for (let i = 0; i < data.opp_hand_count; i++) {
           oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
         }
@@ -332,21 +356,20 @@
         myHandDiv.appendChild(wrap);
       });
 
+      // 점수 상세 내역 렌더링
       const readyPanel = document.getElementById('ready-panel');
       if (data.show_all) {
         readyPanel.style.display = 'block';
-        document.getElementById('win-desc').innerText = data.win_reason;
-        
-        const incDesc = document.getElementById('incidental-desc');
-        if (data.incidental_result && Object.keys(data.incidental_result).length > 0) {
-          let txt = '✨ 겸사겸사 완성 발생: ';
-          for (const [p, r] of Object.entries(data.incidental_result)) {
-            txt += `[${p}P ${r.name} +${r.score}점] `;
-          }
-          incDesc.innerText = txt;
-          incDesc.style.display = 'block';
-        } else {
-          incDesc.style.display = 'none';
+        const setList = document.getElementById('settlement-list');
+        setList.innerHTML = '';
+
+        if (data.settlements && data.settlements.length > 0) {
+          data.settlements.forEach(s => {
+            const card = document.createElement('div');
+            card.className = `settlement-card ${s.type === '겸사겸사' ? 'incidental' : 'win'}`;
+            card.innerText = s.text;
+            setList.appendChild(card);
+          });
         }
 
         const myReady = data.ready[myPlayer];
