@@ -358,12 +358,37 @@ class GameSession:
             self.turn_phase = "round_end"
             self.starter = 2 if self.starter == 1 else 1
 
+    # --- AI 대기패 계산 및 전략 지능 ---
+    def calculate_hand_outs(self, hand_5):
+        """남은 5장 패에 1장이 들어왔을 때 역이 완성되는 유효 타일 목록 계산"""
+        valid_outs = []
+        for top in range(1, 7):
+            for btm in range(top, 7):
+                t1 = {"id": "sim", "top": top, "bottom": btm, "is_double": (top == btm)}
+                t2 = {"id": "sim", "top": btm, "bottom": top, "is_double": (top == btm)}
+                if evaluate_hand(hand_5 + [t1], is_incidental=False) or evaluate_hand(hand_5 + [t2], is_incidental=False):
+                    valid_outs.append((top, btm))
+        return valid_outs
+
+    def count_remaining_outs(self, p_num, valid_outs):
+        """유효 대기패 중 바닥패와 내 손패를 제외하고 실제 덱/상대패에 살아있는 실질 매수 계산"""
+        total_remaining = 0
+        known_tiles = self.players[p_num] + self.discards
+        for (top, btm) in valid_outs:
+            total_in_game = 2
+            used = sum(1 for t in known_tiles if (t["top"] == top and t["bottom"] == btm) or (t["top"] == btm and t["bottom"] == top))
+            remain = max(0, total_in_game - used)
+            total_remaining += remain
+        return total_remaining
+
     async def run_ai_turn(self):
         await asyncio.sleep(0.8)
         if not self.game_started or self.current_turn != 2:
             return
 
+        # 1. Draw 단계
         if self.turn_phase == "draw":
+            # 론 검사
             if self.last_discard:
                 for fl in [False, True]:
                     t_cand = dict(self.last_discard)
@@ -372,6 +397,7 @@ class GameSession:
                         self.declare_ron(2, mode="steal")
                         return
 
+            # 바닥 패 가져오기 (완성 가능하거나 주요 패인 경우)
             picked_from_floor = False
             if self.ai_diff in ["mid", "high"] and self.discards:
                 for disc in reversed(self.discards[-3:]):
@@ -391,45 +417,58 @@ class GameSession:
         if not self.game_started or self.current_turn != 2:
             return
 
+        # 2. Discard 단계
         if self.turn_phase == "discard":
+            # 쯔모 완성 체크
             if evaluate_hand(self.players[2], is_incidental=False):
                 self.declare_tsumo(2)
                 return
 
             hand = self.players[2]
+
+            # 리치 상태인 경우 뽑은 패 강제 버림
             if self.riichi[2]:
                 chosen = next((t for t in hand if t["id"] == self.last_drawn_id[2]), hand[-1])
                 self.discard_tile(2, chosen["id"], declare_riichi=False)
                 return
 
+            best_tile = None
+            should_riichi = False
+
             if self.ai_diff == "low":
+                # 하급: 엉뚱한 패 버림, 리치 없음
                 chosen = random.choice(hand)
                 declare_r = False
-            elif self.ai_diff == "mid":
-                non_stars = [t for t in hand if not t["is_double"]]
-                chosen = random.choice(non_stars) if non_stars else hand[0]
-                declare_r = (random.random() < 0.3)
             else:
-                cand_scores = []
+                # 중급/고급: 6장 중 어떤 패를 버려야 가장 많은 유효 대기패가 살아남는지 정밀 시뮬레이션
+                candidates = []
                 for t in hand:
-                    remain = [x for x in hand if x["id"] != t["id"]]
-                    valid_outs = 0
-                    for num1 in range(1, 7):
-                        for num2 in range(num1, 7):
-                            f_tile = {"id": "fk", "top": num1, "bottom": num2, "is_double": (num1 == num2)}
-                            if evaluate_hand(remain + [f_tile], is_incidental=False):
-                                valid_outs += 1
-                    cand_scores.append((valid_outs, t))
-                cand_scores.sort(key=lambda x: x[0], reverse=True)
-                best_valid, chosen = cand_scores[0]
-                declare_r = (best_valid >= 2 and not self.riichi[2])
+                    remain_5 = [x for x in hand if x["id"] != t["id"]]
+                    outs = self.calculate_hand_outs(remain_5)
+                    live_outs_count = self.count_remaining_outs(2, outs)
+                    
+                    # 가중치: 살아있는 대기패 매수 + 손패에 보존할 별(더블) 타일 가치
+                    score = live_outs_count * 10
+                    if t["is_double"]:
+                        score -= 3  # 별 타일은 웬만하면 버리지 않도록 페널티
+                    candidates.append((score, live_outs_count, t))
 
-            self.discard_tile(2, chosen["id"], declare_riichi=declare_r)
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                best_score, best_live_outs, chosen = candidates[0]
+
+                # 신중한 리치 조건 (실제 대기패가 살아있을 때만)
+                if not self.riichi[2]:
+                    if self.ai_diff == "mid":
+                        should_riichi = (best_live_outs >= 2)
+                    elif self.ai_diff == "high":
+                        should_riichi = (best_live_outs >= 3)
+
+            self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
 
 # --- 세션 관리 및 통신 구조 ---
 multi_game = GameSession(mode="multi")
-multi_connections = {} # p_num -> ws
-single_sessions = {}   # ws -> GameSession
+multi_connections = {}
+single_sessions = {}
 
 async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     opp_num = 2 if p_num == 1 else 1
@@ -527,7 +566,6 @@ async def websocket_endpoint(websocket: WebSocket):
     current_mode = "none"
     p_num = None
 
-    # 초기 상태 전송
     await websocket.send_json({"mode": "none"})
 
     try:
@@ -535,7 +573,6 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
             act = data.get("action")
 
-            # 1. 모드 선택
             if act == "select_mode":
                 chosen = data.get("mode")
                 if chosen == "single":
@@ -556,7 +593,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     multi_connections[p_num] = websocket
                     await broadcast_multi()
 
-            # 2. 로비로 돌아가기 (누른 본인만 퇴장)
             elif act == "go_home":
                 if current_mode == "single":
                     if websocket in single_sessions:
@@ -564,7 +600,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif current_mode == "multi":
                     if p_num in multi_connections:
                         del multi_connections[p_num]
-                    # 방에 남아 있는 상대방에게 퇴장 알림 및 대기 상태로 전환
                     multi_game.game_started = False
                     multi_game.scores = {1: 0, 2: 0}
                     multi_game.ready = {1: False, 2: False}
@@ -575,7 +610,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 p_num = None
                 await websocket.send_json({"mode": "none"})
 
-            # 3. 게임 내 액션 처리
             else:
                 active_game = single_sessions.get(websocket) if current_mode == "single" else multi_game
                 curr_p = 1 if current_mode == "single" else p_num
@@ -621,7 +655,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.game_started = False
                     active_game.reset_round()
 
-                # 화면 동기화
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
                 else:
