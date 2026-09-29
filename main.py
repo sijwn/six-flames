@@ -104,7 +104,6 @@ def evaluate_hand(tiles, is_incidental=False):
         return None
 
     best = None
-    # 6개 타일 각각의 플립 조합(총 64가지) 중 가장 높은 역을 자동 탐색
     for mask in range(64):
         variant = []
         for i in range(6):
@@ -140,7 +139,7 @@ class GameSession:
         self.starter = 1
         self.ready = {1: False, 2: False}
         self.game_started = False
-        self.status_notice = None # AI 행동 알림용
+        self.status_notice = None
         self.reset_round()
 
     def reset_round(self):
@@ -400,21 +399,38 @@ class GameSession:
         best_pot += pairs * 10
         return best_pot
 
-    async def run_ai_turn(self):
-        """딜레이 없이 즉시 연산 후 행동 및 안내 알림 설정"""
+    def run_ai_turn_instant(self):
+        """딜레이(sleep)를 완전히 제거하여 즉시 실행하고 정확한 론 모드를 선택함"""
         if not self.game_started or self.current_turn != 2:
             return
 
         opp_riichi = self.riichi[1]
+        opp_score = self.scores[1]
 
         # 1. DRAW 단계
         if self.turn_phase == "draw":
-            # 론 검사
+            # 1-1. 론 검사
             if self.last_discard:
-                if evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False):
-                    self.declare_ron(2, mode="steal")
-                    self.status_notice = None
-                    return
+                res_ron = evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False)
+                if res_ron:
+                    base = res_ron["base_score"]
+                    stars = res_ron["stars"]
+                    riichi_pt = 1 if self.riichi[2] else 0
+                    hand_total = base + stars + riichi_pt
+
+                    # 상대 점수가 없거나, 뺏는 점수가 본인 역 점수보다 작으면 공급처에서 직접 받는 direct(완성) 선택
+                    # 상대 점수가 넉넉하면 상대를 깎아내리는 steal(강탈) 선택
+                    chosen_mode = "steal" if opp_score >= hand_total else "direct"
+                    
+                    # 리치 상태가 아니고 상대 점수도 0점이며 1점짜리 저득점인 경우 패를 더 키우기 위해 패스할 수도 있음
+                    should_ron = True
+                    if not self.riichi[2] and opp_score == 0 and hand_total <= 1 and len(self.deck) > 15:
+                        should_ron = False
+
+                    if should_ron:
+                        self.declare_ron(2, mode=chosen_mode)
+                        self.status_notice = None
+                        return
 
             picked_from_floor = False
             picked_tile_info = None
@@ -463,12 +479,9 @@ class GameSession:
                 self.status_notice = f"🤖 AI가 {draw_action_txt} [{chosen['top']}/{chosen['bottom']}]을(를) 버렸습니다."
                 return
 
-            best_tile = None
             should_riichi = False
-
             if self.ai_diff == "low":
                 chosen = random.choice(hand)
-                declare_r = False
             else:
                 candidates = []
                 for t in hand:
@@ -561,6 +574,7 @@ async def broadcast_multi():
         await send_state_to_ws(ws, multi_game, p_num)
 
 async def timer_background_task():
+    """서버 타이머 루프: AI의 동작과 완벽히 독립되어 1초마다 지속 카운트다운"""
     while True:
         try:
             await asyncio.sleep(1)
@@ -579,9 +593,6 @@ async def timer_background_task():
                         s_game.handle_timeout()
                     await send_state_to_ws(ws, s_game, 1)
 
-                if s_game.game_started and s_game.current_turn == 2 and s_game.turn_phase in ["draw", "discard"]:
-                    await s_game.run_ai_turn()
-                    await send_state_to_ws(ws, s_game, 1)
         except Exception:
             pass
 
@@ -616,8 +627,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_mode = "single"
                     p_num = 1
                     diff = data.get("diff", "mid")
-                    single_sessions[websocket] = GameSession(mode="single", ai_diff=diff)
-                    await send_state_to_ws(websocket, single_sessions[websocket], 1)
+                    s_game = GameSession(mode="single", ai_diff=diff)
+                    single_sessions[websocket] = s_game
+                    await send_state_to_ws(websocket, s_game, 1)
                 elif chosen == "multi":
                     current_mode = "multi"
                     if 1 not in multi_connections:
@@ -694,7 +706,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.game_started = False
                     active_game.reset_round()
 
+                # 1인 모드: 유저 액션 직후 AI 차례라면 즉시 0초 만에 AI 턴 수행
                 if current_mode == "single":
+                    if active_game.game_started and active_game.current_turn == 2:
+                        active_game.run_ai_turn_instant()
                     await send_state_to_ws(websocket, active_game, 1)
                 else:
                     await broadcast_multi()
