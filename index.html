@@ -1,718 +1,848 @@
-import random
-import asyncio
-from contextlib import asynccontextmanager
-from itertools import combinations, permutations
-from collections import Counter
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
-
-def is_same_tile(t1, t2):
-    return (t1["top"] == t2["top"] and t1["bottom"] == t2["bottom"]) or \
-           (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
-
-def evaluate_fixed_hand(tiles, is_incidental=False):
-    """현재 위/아래 방향 그대로 판정하는 단일 검사 함수"""
-    if len(tiles) != 6:
-        return None
-
-    star_count = sum(1 for t in tiles if t["is_double"])
-    bottoms = [t["bottom"] for t in tiles]
-    tops = [t["top"] for t in tiles]
-    all_nums = set(tops + bottoms)
-
-    best_name = None
-    best_base = -1
-    best_stars = 0
-
-    # 1. 무쌍 (3점 + 별보너스 6개 = 총 9점)
-    if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
-        return {"name": "무쌍", "base_score": 3, "stars": 6, "total_score": 9}
-
-    # 2. 개화 (8점 + 별보너스)
-    if (sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]):
-        if all(t["top"] + t["bottom"] == 7 for t in tiles):
-            if 8 > best_base:
-                best_name, best_base, best_stars = "개화", 8, star_count
-
-    # 3. 연쇄 (6점, 보너스 무시)
-    chain_pairs = sorted([tuple(sorted((t["top"], t["bottom"]))) for t in tiles])
-    if chain_pairs == [(1, 2), (1, 6), (2, 3), (3, 4), (4, 5), (5, 6)]:
-        if 6 > best_base:
-            best_name, best_base, best_stars = "연쇄", 6, 0
-
-    # 4. 육화 (6점 + 별보너스)
-    if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
-        if 6 > best_base:
-            best_name, best_base, best_stars = "육화", 6, star_count
-
-    # 5. 휘광 (5점, 보너스 무시)
-    if star_count == 6:
-        if 5 > best_base:
-            best_name, best_base, best_stars = "휘광", 5, 0
-
-    # 6. 삼동 (5점 + 별보너스)
-    for p in permutations(tiles):
-        if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
-            if 5 > best_base:
-                best_name, best_base, best_stars = "삼동", 5, star_count
-            break
-
-    # 7. 삼색 (3점, 보너스 무시) - 겸사겸사
-    if is_incidental and len(all_nums) <= 3:
-        if 3 > best_base:
-            best_name, best_base, best_stars = "삼색", 3, 0
-
-    # 8. 삼연 (3점 + 별보너스)
-    for s1_idx in combinations(range(6), 3):
-        s2_idx = [i for i in range(6) if i not in s1_idx]
-        s1 = [tiles[i] for i in s1_idx]
-        s2 = [tiles[i] for i in s2_idx]
-        
-        c1 = (len(set(t["bottom"] for t in s1)) == 1)
-        st1 = sorted(t["top"] for t in s1)
-        seq1 = (len(st1) == 3 and st1[0] + 1 == st1[1] and st1[1] + 1 == st1[2])
-
-        c2 = (len(set(t["bottom"] for t in s2)) == 1)
-        st2 = sorted(t["top"] for t in s2)
-        seq2 = (len(st2) == 3 and st2[0] + 1 == st2[1] and st2[1] + 1 == st2[2])
-
-        if c1 and seq1 and c2 and seq2:
-            if 3 > best_base:
-                best_name, best_base, best_stars = "삼연", 3, star_count
-            break
-
-    # 9. 동형 (1점 + 별보너스)
-    if sorted(tops) == [1, 2, 2, 3, 3, 3]:
-        if 1 > best_base:
-            best_name, best_base, best_stars = "동형", 1, star_count
-
-    # 10. 일색 (1점 + 별보너스)
-    if len(set(bottoms)) == 1:
-        if 1 > best_base:
-            best_name, best_base, best_stars = "일색", 1, star_count
-
-    if best_name:
-        return {
-            "name": best_name, "base_score": best_base,
-            "stars": best_stars, "total_score": best_base + best_stars
-        }
-    return None
-
-def evaluate_hand(tiles, is_incidental=False):
-    """위/아래가 뒤집혀 있어도 자동으로 최적의 역을 탐색하여 판정"""
-    if len(tiles) != 6:
-        return None
-
-    best = None
-    # 6개 타일 각각의 플립 조합(총 64가지) 중 가장 높은 역을 자동 탐색
-    for mask in range(64):
-        variant = []
-        for i in range(6):
-            t = tiles[i]
-            if (mask >> i) & 1:
-                variant.append({"id": t["id"], "top": t["bottom"], "bottom": t["top"], "is_double": t["is_double"]})
-            else:
-                variant.append(t)
-        res = evaluate_fixed_hand(variant, is_incidental=is_incidental)
-        if res:
-            if best is None or res["total_score"] > best["total_score"]:
-                best = res
-    return best
-
-def check_incidental_win(hand_5, discards):
-    best = None
-    for d in discards:
-        res = evaluate_hand(hand_5 + [d], is_incidental=True)
-        if res:
-            if best is None or res["total_score"] > best["total_score"]:
-                best = res
-                best["winning_tile"] = d
-    return best
-
-class GameSession:
-    def __init__(self, mode="single", ai_diff="mid"):
-        self.mode = mode
-        self.ai_diff = ai_diff
-        self.target_score = 10
-        self.time_limit = 60
-        self.time_left = 60
-        self.scores = {1: 0, 2: 0}
-        self.starter = 1
-        self.ready = {1: False, 2: False}
-        self.game_started = False
-        self.status_notice = None # AI 행동 알림용
-        self.reset_round()
-
-    def reset_round(self):
-        unique = [(top, bottom) for top in range(1, 7) for bottom in range(top, 7)]
-        self.deck = []
-        tid = 0
-        for _ in range(2):
-            for top, bottom in unique:
-                tid += 1
-                self.deck.append({
-                    "id": f"t_{tid}", "top": top, "bottom": bottom, "is_double": (top == bottom)
-                })
-        random.shuffle(self.deck)
-
-        self.players = {1: [], 2: []}
-        self.discards = []
-        self.riichi = {1: False, 2: False}
-        self.current_turn = self.starter
-        self.turn_phase = "lobby" if not self.game_started else "draw"
-        self.round_winner = None
-        self.round_settlement = []
-        self.last_drawn_id = {1: None, 2: None}
-        self.last_discard = None
-        self.ready = {1: False, 2: False}
-        self.status_notice = None
-        self.time_left = self.time_limit
-
-        for _ in range(5):
-            self.players[1].append(self.deck.pop())
-            self.players[2].append(self.deck.pop())
-
-    def reset_timer(self):
-        self.time_left = self.time_limit
-
-    def flip_tile(self, p_num, tile_id):
-        hand = self.players[p_num]
-        for t in hand:
-            if t["id"] == tile_id:
-                t["top"], t["bottom"] = t["bottom"], t["top"]
-                return True
-        return False
-
-    def reorder_tiles(self, p_num, order_ids):
-        hand = self.players[p_num]
-        id_map = {t["id"]: t for t in hand}
-        new_hand = [id_map[tid] for tid in order_ids if tid in id_map]
-        if len(new_hand) == len(hand):
-            self.players[p_num] = new_hand
-            return True
-        return False
-
-    def draw_tile(self, p_num, discard_id=None):
-        if self.current_turn != p_num or self.turn_phase != "draw":
-            return False
-
-        if discard_id:
-            target = next((t for t in self.discards if t["id"] == discard_id), None)
-            if not target:
-                return False
-            self.discards.remove(target)
-            tile = target
-        else:
-            if not self.deck:
-                self.turn_phase = "round_end"
-                self.round_settlement.append({"player": 0, "text": "유국 (패산 소진으로 무승부)"})
-                self.check_round_end_incidentals(winner_num=None)
-                return True
-            tile = self.deck.pop()
-
-        self.players[p_num].append(tile)
-        self.last_drawn_id[p_num] = tile["id"]
-        self.turn_phase = "discard"
-        return True
-
-    def discard_tile(self, p_num, tile_id, declare_riichi=False):
-        if self.current_turn != p_num or self.turn_phase != "discard":
-            return False
-
-        if self.riichi[p_num] and tile_id != self.last_drawn_id[p_num]:
-            return False
-
-        hand = self.players[p_num]
-        target = next((t for t in hand if t["id"] == tile_id), None)
-        if not target:
-            return False
-
-        if declare_riichi and not self.riichi[p_num]:
-            self.riichi[p_num] = True
-
-        hand.remove(target)
-        self.discards.append(target)
-        self.last_discard = target
-
-        self.pass_turn()
-        return True
-
-    def pass_turn(self):
-        self.current_turn = 2 if self.current_turn == 1 else 1
-        self.turn_phase = "draw"
-        self.reset_timer()
-
-    def handle_timeout(self):
-        p = self.current_turn
-        if self.turn_phase == "draw":
-            self.pass_turn()
-        elif self.turn_phase == "discard":
-            tid_to_discard = self.last_drawn_id.get(p)
-            hand = self.players[p]
-            target = next((t for t in hand if t["id"] == tid_to_discard), None)
-            if not target and hand:
-                target = hand[-1]
-            if target:
-                hand.remove(target)
-                self.discards.append(target)
-                self.last_discard = target
-            self.pass_turn()
-
-    def declare_tsumo(self, p_num):
-        if self.current_turn != p_num or self.turn_phase != "discard":
-            return False
-        res = evaluate_hand(self.players[p_num], is_incidental=False)
-        if res:
-            base = res["base_score"]
-            stars = res["stars"]
-            riichi_pt = 1 if self.riichi[p_num] else 0
-            total = base + stars + riichi_pt
-            self.scores[p_num] += total
-            self.round_winner = p_num
-
-            p_title = f"{p_num}P" if self.mode == "multi" or p_num == 1 else "AI(2P)"
-            detail = f"{res['name']}({base}점)"
-            if stars > 0: detail += f" + 별보너스({stars}점)"
-            if riichi_pt > 0: detail += " + 리치(1점)"
-
-            self.round_settlement = [{
-                "player": p_num, "type": "쯔모",
-                "text": f"[{p_title} 쯔모 완성] {detail} = 총 {total}점 획득"
-            }]
-            self.check_round_end_incidentals(winner_num=p_num)
-            self.end_round()
-            return True
-        return False
-
-    def declare_ron(self, p_num, mode="steal"):
-        if self.current_turn != p_num or self.turn_phase != "draw" or not self.last_discard:
-            return False
-
-        opp = 2 if p_num == 1 else 1
-        winning_tile = self.last_discard
-
-        res = evaluate_hand(self.players[p_num] + [winning_tile], is_incidental=False)
-        if not res:
-            return False
-
-        if winning_tile in self.discards:
-            self.discards.remove(winning_tile)
-        self.players[p_num].append(winning_tile)
-
-        base = res["base_score"]
-        stars = res["stars"]
-        riichi_pt = 1 if self.riichi[p_num] else 0
-        total = base + stars + riichi_pt
-
-        p_title = f"{p_num}P" if self.mode == "multi" or p_num == 1 else "AI(2P)"
-        opp_title = f"{opp}P" if self.mode == "multi" or opp == 1 else "AI(2P)"
-
-        detail = f"{res['name']}({base}점)"
-        if stars > 0: detail += f" + 별보너스({stars}점)"
-        if riichi_pt > 0: detail += " + 리치(1점)"
-
-        if mode == "steal":
-            stolen = min(self.scores[opp], total)
-            self.scores[opp] -= stolen
-            self.scores[p_num] += stolen
-            desc = f"[{p_title} 론(강탈)] {detail} = {opp_title}에게서 {stolen}점 강탈 (기본 점수: {total}점)"
-        else:
-            self.scores[p_num] += total
-            desc = f"[{p_title} 완성] {detail} = 공급처로부터 총 {total}점 획득"
-
-        self.round_winner = p_num
-        self.round_settlement = [{"player": p_num, "type": "론", "text": desc}]
-        self.end_round()
-        return True
-
-    def check_round_end_incidentals(self, winner_num):
-        for p in [1, 2]:
-            if p != winner_num and len(self.players[p]) == 5:
-                res = check_incidental_win(self.players[p], self.discards)
-                if res:
-                    wt = res["winning_tile"]
-                    self.players[p].append(wt)
-                    base = res["base_score"]
-                    stars = res["stars"]
-                    riichi_pt = 1 if self.riichi[p] else 0
-                    total = base + stars + riichi_pt
-                    self.scores[p] += total
-
-                    p_title = f"{p}P" if self.mode == "multi" or p == 1 else "AI(2P)"
-                    detail = f"{res['name']}({base}점)"
-                    if stars > 0: detail += f" + 별보너스({stars}점)"
-                    if riichi_pt > 0: detail += " + 리치(1점)"
-
-                    self.round_settlement.append({
-                        "player": p, "type": "겸사겸사",
-                        "text": f"[{p_title} 겸사겸사 완성] {detail} = 총 {total}점 획득"
-                    })
-
-    def end_round(self):
-        if self.scores[1] >= self.target_score or self.scores[2] >= self.target_score:
-            self.turn_phase = "game_over"
-        else:
-            self.turn_phase = "round_end"
-            self.starter = 2 if self.starter == 1 else 1
-
-    def calculate_hand_outs(self, hand_5):
-        valid_outs = []
-        for top in range(1, 7):
-            for btm in range(top, 7):
-                t = {"id": "sim", "top": top, "bottom": btm, "is_double": (top == btm)}
-                r = evaluate_hand(hand_5 + [t], is_incidental=False)
-                if r:
-                    valid_outs.append((top, btm, r["total_score"]))
-        return valid_outs
-
-    def count_remaining_outs(self, p_num, valid_outs):
-        total_remaining = 0
-        total_score_pot = 0
-        known_tiles = self.players[p_num] + self.discards
-        for (top, btm, score) in valid_outs:
-            used = sum(1 for t in known_tiles if (t["top"] == top and t["bottom"] == btm) or (t["top"] == btm and t["bottom"] == top))
-            remain = max(0, 2 - used)
-            total_remaining += remain
-            total_score_pot += (remain * score)
-        return total_remaining, total_score_pot
-
-    def evaluate_hand_potential(self, hand, opponent_riichi=False):
-        if not hand: return 0
-        star_count = sum(1 for t in hand if t["is_double"])
-        bottom_counts = Counter(t["bottom"] for t in hand)
-
-        if opponent_riichi:
-            max_same_bottom = max(bottom_counts.values()) if bottom_counts else 0
-            return max_same_bottom * 15 + star_count * 2
-
-        best_pot = 0
-        if star_count >= 3:
-            best_pot += star_count * 12
-
-        max_same_bottom = max(bottom_counts.values()) if bottom_counts else 0
-        best_pot += max_same_bottom * 8
-
-        pairs = 0
-        for i in range(len(hand)):
-            for j in range(i + 1, len(hand)):
-                if is_same_tile(hand[i], hand[j]):
-                    pairs += 1
-        best_pot += pairs * 10
-        return best_pot
-
-    async def run_ai_turn(self):
-        # AI 생각 시간 (1.2초)
-        self.status_notice = "🤖 AI가 수를 고민하고 있습니다..."
-        await asyncio.sleep(1.2)
-        if not self.game_started or self.current_turn != 2:
-            return
-
-        opp_riichi = self.riichi[1]
-
-        # 1. DRAW 단계
-        if self.turn_phase == "draw":
-            # 론 검사
-            if self.last_discard:
-                if evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False):
-                    self.declare_ron(2, mode="steal")
-                    self.status_notice = None
-                    return
-
-            picked_from_floor = False
-            picked_tile_info = None
-
-            if self.discards:
-                current_pot = self.evaluate_hand_potential(self.players[2], opponent_riichi=opp_riichi)
-                candidates = []
-
-                search_depth = 3 if self.ai_diff == "low" else (6 if self.ai_diff == "mid" else len(self.discards))
-                for disc in reversed(self.discards[-search_depth:]):
-                    test_hand_6 = self.players[2] + [disc]
-                    if evaluate_hand(test_hand_6, is_incidental=False):
-                        candidates.append((999, disc))
-                        break
-
-                    pot_diff = self.evaluate_hand_potential(test_hand_6, opponent_riichi=opp_riichi) - current_pot
-                    if pot_diff >= (8 if self.ai_diff == "high" else 12):
-                        candidates.append((pot_diff, disc))
-
-                if candidates:
-                    if self.ai_diff != "low" or random.random() < 0.4:
-                        candidates.sort(key=lambda x: x[0], reverse=True)
-                        target_tile = candidates[0][1]
-                        picked_tile_info = f"[{target_tile['top']}/{target_tile['bottom']}]"
-                        self.draw_tile(2, discard_id=target_tile["id"])
-                        picked_from_floor = True
-
-            if not picked_from_floor:
-                self.draw_tile(2, discard_id=None)
-                self.status_notice = "🤖 AI가 덱에서 패를 1장 뽑았습니다."
-            else:
-                self.status_notice = f"🤖 AI가 바닥에서 {picked_tile_info} 패를 가져왔습니다!"
-
-        # 유저가 무엇을 주웠는지 볼 수 있도록 1.2초 대기
-        await asyncio.sleep(1.2)
-        if not self.game_started or self.current_turn != 2:
-            return
-
-        # 2. DISCARD 단계
-        if self.turn_phase == "discard":
-            if evaluate_hand(self.players[2], is_incidental=False):
-                self.declare_tsumo(2)
-                self.status_notice = None
-                return
-
-            hand = self.players[2]
-
-            if self.riichi[2]:
-                chosen = next((t for t in hand if t["id"] == self.last_drawn_id[2]), hand[-1])
-                self.discard_tile(2, chosen["id"], declare_riichi=False)
-                self.status_notice = None
-                return
-
-            best_tile = None
-            should_riichi = False
-
-            if self.ai_diff == "low":
-                chosen = random.choice(hand)
-                declare_r = False
-            else:
-                candidates = []
-                for t in hand:
-                    remain_5 = [x for x in hand if x["id"] != t["id"]]
-                    outs = self.calculate_hand_outs(remain_5)
-                    live_outs_count, score_pot = self.count_remaining_outs(2, outs)
-                    potential = self.evaluate_hand_potential(remain_5, opponent_riichi=opp_riichi)
-
-                    eval_score = (live_outs_count * 20) + (score_pot * 2) + potential
-                    if opp_riichi:
-                        safety = sum(1 for d in self.discards if d["top"] == t["top"] or d["bottom"] == t["bottom"])
-                        eval_score += safety * 8
-
-                    if t["is_double"]:
-                        eval_score -= 4
-
-                    candidates.append((eval_score, live_outs_count, t))
-
-                candidates.sort(key=lambda x: x[0], reverse=True)
-                best_score, best_live_outs, chosen = candidates[0]
-
-                if not self.riichi[2]:
-                    if opp_riichi:
-                        should_riichi = (best_live_outs >= 3)
-                    elif self.ai_diff == "mid":
-                        should_riichi = (best_live_outs >= 2)
-                    elif self.ai_diff == "high":
-                        should_riichi = (best_live_outs >= 2 and best_score >= 35)
-
-            # 버리기 전 1.0초 고민 후 버림
-            self.status_notice = "🤖 AI가 버릴 패를 선택하고 있습니다..."
-            await asyncio.sleep(1.0)
-            self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
-            self.status_notice = None
-
-multi_game = GameSession(mode="multi")
-multi_connections = {}
-single_sessions = {}
-
-async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
-    opp_num = 2 if p_num == 1 else 1
-    my_hand = game.players.get(p_num, [])
-    opp_hand = game.players.get(opp_num, [])
-
-    current_yaku = evaluate_hand(my_hand, is_incidental=False) if len(my_hand) == 6 else None
-    can_riichi = (p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
-
-    can_ron = False
-    if p_num == game.current_turn and game.turn_phase == "draw" and game.last_discard:
-        if evaluate_hand(my_hand + [game.last_discard], is_incidental=False):
-            can_ron = True
-
-    can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
-    show_all = (game.turn_phase in ["round_end", "game_over"])
-
-    payload = {
-        "mode": game.mode,
-        "ai_diff": game.ai_diff,
-        "player_num": p_num,
-        "target_score": game.target_score,
-        "time_limit": game.time_limit,
-        "time_left": game.time_left,
-        "my_turn": game.current_turn == p_num,
-        "current_turn": game.current_turn,
-        "phase": game.turn_phase,
-        "deck_count": len(game.deck),
-        "my_hand": my_hand,
-        "opp_hand_count": len(opp_hand),
-        "opp_hand": opp_hand if show_all else None,
-        "discards": game.discards,
-        "scores": game.scores,
-        "riichi": game.riichi,
-        "winner": game.round_winner,
-        "settlements": game.round_settlement,
-        "can_ron": can_ron,
-        "can_tsumo": can_tsumo,
-        "can_riichi": can_riichi,
-        "current_yaku": current_yaku,
-        "last_drawn_id": game.last_drawn_id[p_num],
-        "ready": game.ready,
-        "show_all": show_all,
-        "game_started": game.game_started,
-        "status_notice": game.status_notice
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>여섯 불꽃 온라인</title>
+  <style>
+    :root {
+      --c1: #ef4444; --c2: #f97316; --c3: #eab308;
+      --c4: #10b981; --c5: #3b82f6; --c6: #a855f7;
     }
-    try:
-        await ws.send_json(payload)
-    except Exception:
-        pass
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 12px; }
+    .container { max-width: 860px; margin: 0 auto; background: #1e293b; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); position: relative; }
+    
+    .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .btn-home { background: #475569; color: #f8fafc; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+    .btn-home:hover { background: #64748b; }
 
-async def broadcast_multi():
-    for p_num, ws in list(multi_connections.items()):
-        await send_state_to_ws(ws, multi_game, p_num)
+    .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+    .score-box { text-align: center; padding: 6px 16px; border-radius: 8px; transition: all 0.3s; }
+    .player-label { font-size: 15px; font-weight: bold; color: #94a3b8; transition: color 0.3s; }
+    
+    /* 턴인 플레이어 발광 효과 */
+    .score-box.active-turn {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+      animation: turnGlow 1.5s infinite alternate;
+    }
+    .score-box.active-turn .player-label {
+      color: #38bdf8;
+      text-shadow: 0 0 8px #38bdf8;
+    }
+    @keyframes turnGlow {
+      from { box-shadow: 0 0 8px rgba(56, 189, 248, 0.2); }
+      to { box-shadow: 0 0 18px rgba(56, 189, 248, 0.6); }
+    }
 
-async def timer_background_task():
-    while True:
-        try:
-            await asyncio.sleep(1)
-            # 2인 모드
-            if multi_game.game_started and multi_game.turn_phase in ["draw", "discard"] and multi_game.time_limit > 0:
-                multi_game.time_left -= 1
-                if multi_game.time_left <= 0:
-                    multi_game.handle_timeout()
-                await broadcast_multi()
+    .score-val { font-size: 24px; font-weight: bold; color: #f59e0b; }
+    .riichi-badge { background: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 6px; animation: pulse 1s infinite alternate; }
+    @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; } }
 
-            # 1인 모드
-            for ws, s_game in list(single_sessions.items()):
-                if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
-                    s_game.time_left -= 1
-                    if s_game.time_left <= 0:
-                        s_game.handle_timeout()
-                    await send_state_to_ws(ws, s_game, 1)
+    .timer-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 4px; }
+    .timer-warn { color: #ef4444; animation: pulse 0.5s infinite alternate; }
 
-                if s_game.game_started and s_game.current_turn == 2 and s_game.turn_phase in ["draw", "discard"]:
-                    await s_game.run_ai_turn()
-                    await send_state_to_ws(ws, s_game, 1)
-        except Exception:
-            pass
+    .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
+    .tile-wrap { position: relative; display: inline-block; padding-top: 14px; }
+    .tile {
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: space-between;
+      width: 44px;
+      height: 76px;
+      background: #fafafa;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      border: 2px solid transparent;
+      transition: transform 0.1s, border-color 0.1s;
+    }
+    .tile:hover:not(.locked) { transform: translateY(-4px); }
+    .tile.locked { opacity: 0.5; cursor: not-allowed; }
+    .tile.drawn-highlight { border: 2px solid #38bdf8 !important; box-shadow: 0 0 10px #38bdf8 !important; }
+    .tile.last-discard { border: 2px solid #facc15; box-shadow: 0 0 10px #facc15; }
+    .tile.selectable-discard { border: 2px dashed #4ade80 !important; cursor: pointer !important; }
+    .tile.selectable-discard:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 0 12px #4ade80; }
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    task = asyncio.create_task(timer_background_task())
-    yield
-    task.cancel()
+    .tile-ctrl-btn {
+      position: absolute; top: 0; background: #334155; color: #cbd5e1;
+      border: 1px solid #64748b; border-radius: 4px; width: 14px; height: 14px;
+      font-size: 9px; line-height: 12px; text-align: center; cursor: pointer; z-index: 5;
+    }
+    .tile-ctrl-btn:hover { background: #3b82f6; color: #fff; }
+    .btn-move-left { left: 0; }
+    .btn-move-right { left: 16px; }
+    .btn-flip { right: 0; border-radius: 50%; width: 16px; height: 16px; line-height: 14px; font-size: 10px; }
 
-app = FastAPI(lifespan=lifespan)
+    .tile-half { font-weight: 900; font-size: 19px; height: 33px; display: flex; align-items: center; justify-content: center; }
+    .tile-divider { height: 1px; background: #cbd5e1; position: relative; }
+    .star-mark { position: absolute; top: -7px; left: calc(50% - 6px); font-size: 10px; color: #ef4444; background: #fafafa; border-radius: 50%; line-height: 12px; width: 12px; text-align: center; }
 
-@app.get("/")
-def get_index():
-    return FileResponse("index.html")
+    .num-1 { color: var(--c1); } .num-2 { color: var(--c2); } .num-3 { color: var(--c3); }
+    .num-4 { color: var(--c4); } .num-5 { color: var(--c5); } .num-6 { color: var(--c6); }
+    .tile-back { background: #334155; border: 2px dashed #64748b; width: 38px; height: 66px; cursor: default; }
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    current_mode = "none"
-    p_num = None
+    .action-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 0; }
+    button { background: #3b82f6; color: white; border: none; padding: 10px 16px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+    button:disabled { background: #475569; cursor: not-allowed; opacity: 0.5; }
+    button.btn-win { background: #10b981; }
+    button.btn-ron { background: #f59e0b; }
+    button.btn-riichi { background: #ef4444; }
 
-    await websocket.send_json({"mode": "none"})
+    .yaku-badge { background: #10b981; color: white; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold; display: inline-block; margin-bottom: 8px; }
+    .discards-box { background: #0f172a; border-radius: 8px; padding: 8px; min-height: 85px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .sec-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin-top: 10px; }
 
-    try:
-        while True:
-            data = await websocket.receive_json()
-            act = data.get("action")
+    .settlement-card { background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 8px 12px; margin: 6px 0; text-align: left; font-size: 14px; }
+    .settlement-card.win { border-left-color: #4ade80; }
+    .settlement-card.incidental { border-left-color: #facc15; }
 
-            if act == "select_mode":
-                chosen = data.get("mode")
-                if chosen == "single":
-                    current_mode = "single"
-                    p_num = 1
-                    diff = data.get("diff", "mid")
-                    single_sessions[websocket] = GameSession(mode="single", ai_diff=diff)
-                    await send_state_to_ws(websocket, single_sessions[websocket], 1)
-                elif chosen == "multi":
-                    current_mode = "multi"
-                    if 1 not in multi_connections:
-                        p_num = 1
-                    elif 2 not in multi_connections:
-                        p_num = 2
-                    else:
-                        await websocket.send_json({"type": "full", "msg": "2인 대전 방이 이미 가득 찼습니다."})
-                        continue
-                    multi_connections[p_num] = websocket
-                    await broadcast_multi()
+    /* 도미노 미니 그래픽 예시 스타일 */
+    .yaku-guide-wrap { margin-top: 24px; background: #0f172a; border-radius: 12px; padding: 18px; border: 1px solid #334155; }
+    .yaku-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+    .yaku-header h3 { margin: 0; color: #38bdf8; font-size: 16px; }
+    .btn-toggle-guide { background: #1e293b; color: #cbd5e1; border: 1px solid #475569; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; }
 
-            elif act == "go_home":
-                if current_mode == "single":
-                    if websocket in single_sessions:
-                        del single_sessions[websocket]
-                elif current_mode == "multi":
-                    if p_num in multi_connections:
-                        del multi_connections[p_num]
-                    multi_game.game_started = False
-                    multi_game.scores = {1: 0, 2: 0}
-                    multi_game.ready = {1: False, 2: False}
-                    multi_game.reset_round()
-                    await broadcast_multi()
+    .yaku-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 14px; }
+    .yaku-card { background: #1e293b; border-radius: 8px; padding: 12px; border: 1px solid #475569; font-size: 13px; display: flex; flex-direction: column; justify-content: space-between; }
+    .yaku-title { font-size: 15px; font-weight: bold; color: #facc15; display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .yaku-desc { color: #cbd5e1; font-size: 12px; line-height: 1.4; margin-bottom: 10px; min-height: 34px; }
 
-                current_mode = "none"
-                p_num = None
-                await websocket.send_json({"mode": "none"})
+    .visual-example {
+      display: flex; align-items: center; justify-content: center;
+      background: #090d16; padding: 8px; border-radius: 6px; gap: 4px; overflow-x: auto; border: 1px solid #1e293b;
+    }
+    .m-tile {
+      display: inline-flex; flex-direction: column; width: 25px; height: 44px;
+      background: #fafafa; border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      border: 1px solid #cbd5e1; font-weight: bold; text-align: center; flex-shrink: 0;
+    }
+    .m-half { height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+    .m-divider { height: 1px; background: #94a3b8; position: relative; }
+    .m-star { position: absolute; top: -4.5px; left: calc(50% - 4px); width: 8px; height: 8px; color: #ef4444; font-size: 7px; background: #fafafa; border-radius: 50%; line-height: 8px; text-align: center; }
+    .m-hatch { background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 2px, #cbd5e1 2px, #cbd5e1 4px); color: transparent; }
+    .m-group-sep { color: #64748b; font-size: 12px; font-weight: bold; padding: 0 1px; }
+    .m-arrow { color: #38bdf8; font-size: 12px; margin-left: 2px; }
 
-            else:
-                active_game = single_sessions.get(websocket) if current_mode == "single" else multi_game
-                curr_p = 1 if current_mode == "single" else p_num
+    /* 모드 선택 카드 */
+    .mode-select-box { display: flex; gap: 16px; justify-content: center; margin: 30px 0; }
+    .mode-btn-card {
+      background: #0f172a; border: 2px solid #3b82f6; border-radius: 12px;
+      padding: 24px; width: 220px; text-align: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .mode-btn-card:hover { transform: translateY(-5px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <div class="top-nav">
+      <button class="btn-home" onclick="actionGoHome()">🏠 로비로 (모드 선택)</button>
+      <div id="top-mode-badge" style="font-size: 13px; color: #38bdf8; font-weight: bold;"></div>
+    </div>
 
-                if not active_game or curr_p is None:
-                    continue
+    <!-- 1. 모드 선택 화면 (메인 홈) -->
+    <div id="mode-panel" style="text-align: center; padding: 30px 0;">
+      <h1 style="color: #facc15; margin-bottom: 8px;">🔥 여섯 불꽃 (Six Flames)</h1>
+      <p style="color: #94a3b8; margin-bottom: 24px;">플레이 방식을 선택해 주세요</p>
+      
+      <div class="mode-select-box">
+        <div class="mode-btn-card" onclick="openSingleSetup()">
+          <h2 style="color: #38bdf8; margin: 0 0 10px 0;">1인 모드</h2>
+          <p style="color: #cbd5e1; font-size: 13px; margin: 0;">AI를 상대로 연습 게임을 진행합니다.</p>
+        </div>
+        <div class="mode-btn-card" onclick="selectMultiMode()">
+          <h2 style="color: #4ade80; margin: 0 0 10px 0;">2인 모드</h2>
+          <p style="color: #cbd5e1; font-size: 13px; margin: 0;">온라인에서 플레이어와 1대1 대결을 진행합니다.</p>
+        </div>
+      </div>
 
-                if act == "set_settings":
-                    if not active_game.game_started:
-                        active_game.target_score = int(data.get("score", 10))
-                        active_game.time_limit = int(data.get("time", 60))
-                        active_game.time_left = active_game.time_limit
-                elif act == "flip":
-                    active_game.flip_tile(curr_p, data.get("tile_id"))
-                elif act == "reorder":
-                    active_game.reorder_tiles(curr_p, data.get("order", []))
-                elif act == "draw":
-                    active_game.draw_tile(curr_p, discard_id=data.get("discard_id"))
-                elif act == "discard":
-                    active_game.discard_tile(curr_p, data.get("tile_id"), data.get("riichi", False))
-                elif act == "tsumo":
-                    active_game.declare_tsumo(curr_p)
-                elif act == "ron":
-                    active_game.declare_ron(curr_p, mode=data.get("mode", "steal"))
-                elif act == "ready":
-                    active_game.ready[curr_p] = True
-                    if current_mode == "single":
-                        active_game.ready[2] = True
-                        active_game.game_started = True
-                        active_game.reset_round()
-                    elif active_game.ready[1] and active_game.ready[2]:
-                        active_game.game_started = True
-                        active_game.reset_round()
-                elif act == "ready_next":
-                    active_game.ready[curr_p] = True
-                    if current_mode == "single":
-                        active_game.ready[2] = True
-                        active_game.reset_round()
-                    elif active_game.ready[1] and active_game.ready[2]:
-                        active_game.reset_round()
-                elif act == "reset_game":
-                    active_game.scores = {1: 0, 2: 0}
-                    active_game.game_started = False
-                    active_game.reset_round()
+      <!-- 1인 모드 난이도 선택창 -->
+      <div id="single-diff-setup" style="display: none; background: #0f172a; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto; border: 1px solid #334155;">
+        <h3 style="margin-top: 0; color: #facc15;">🤖 AI 난이도 설정</h3>
+        <div style="margin: 15px 0;">
+          <label><input type="radio" name="ai-diff" value="low"> 초급 (하)</label> &nbsp;&nbsp;
+          <label><input type="radio" name="ai-diff" value="mid" checked> 중급 (중)</label> &nbsp;&nbsp;
+          <label><input type="radio" name="ai-diff" value="high"> 고급 (상)</label>
+        </div>
+        <button onclick="startSingleMode()" style="background: #38bdf8; width: 100%;">1인 모드 시작하기</button>
+      </div>
+    </div>
 
-                if current_mode == "single":
-                    await send_state_to_ws(websocket, active_game, 1)
-                else:
-                    await broadcast_multi()
+    <!-- 2. 게임 설정 로비 화면 (양측 조작 및 준비) -->
+    <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
+      <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
+      
+      <div style="margin-bottom: 12px;">
+        <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;"></span>
+      </div>
 
-    except WebSocketDisconnect:
-        if websocket in single_sessions:
-            del single_sessions[websocket]
-        if current_mode == "multi" and p_num in multi_connections:
-            del multi_connections[p_num]
-            multi_game.game_started = False
-            multi_game.scores = {1: 0, 2: 0}
-            multi_game.ready = {1: False, 2: False}
-            multi_game.reset_round()
-            await broadcast_multi()
+      <p style="color:#94a3b8; font-size:13px;">목표 점수와 턴 제한 시간을 조작한 후 준비 완료를 눌러주세요.</p>
+      <div id="lobby-settings" style="margin: 15px 0;">
+        <label>목표 점수: </label>
+        <input type="number" id="inp-target" value="10" min="1" max="999" 
+               oninput="sendSettings()" 
+               style="width: 70px; padding: 4px; text-align: center; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff; font-weight: bold; margin-right: 15px;">
+        
+        <label>턴 제한 시간: </label>
+        <select id="sel-time" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
+          <option value="30">30초</option>
+          <option value="60" selected>1분</option>
+          <option value="120">2분</option>
+          <option value="180">3분</option>
+          <option value="0">무제한</option>
+        </select>
+      </div>
+      <button id="btn-lobby-ready" onclick="actionLobbyReady()" style="background:#10b981; font-size:16px; padding:12px 28px;">게임 준비 완료</button>
+      <div id="lobby-status" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
+    </div>
+
+    <!-- 3. 인게임 화면 -->
+    <div id="game-panel" style="display:none;">
+      <div class="scoreboard">
+        <div class="score-box" id="p1-score-box">
+          <div class="player-label" id="p1-label">1P</div>
+          <div class="score-val" id="p1-score">0점</div>
+          <div id="p1-riichi-tag"></div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 12px; color:#94a3b8;">목표: <span id="target-score-txt">10</span>점</div>
+          <div class="timer-badge" id="timer-box">⏱ <span id="timer-val">60</span>s</div>
+        </div>
+        <div class="score-box" id="p2-score-box">
+          <div class="player-label" id="p2-label">2P</div>
+          <div class="score-val" id="p2-score">0점</div>
+          <div id="p2-riichi-tag"></div>
+        </div>
+      </div>
+
+      <div id="status-bar" style="text-align:center; font-weight:bold; margin: 10px 0;">접속 대기 중...</div>
+
+      <div class="sec-label">상대방 패 <span id="opp-hand-label"></span></div>
+      <div class="hand-container" id="opp-hand"></div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin: 6px 0;">
+        <span class="sec-label">버려진 패 (바닥) <span id="discard-hint" style="color:#4ade80; font-size:11px; display:none;">- 클릭해서 가져오기 가능</span></span>
+        <span style="font-size: 13px;">남은 패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
+      </div>
+      <div class="discards-box" id="discards"></div>
+
+      <div class="action-panel">
+        <button id="btn-draw" onclick="actionDraw(null)" disabled>패 뽑기</button>
+        <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
+        <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
+      </div>
+
+      <div id="ron-modal" style="display:none; text-align:center; margin: 10px 0; background: #334155; padding: 12px; border-radius: 8px;">
+        <div style="color:#facc15; font-weight:bold; margin-bottom: 8px;">상대 버림패로 바로 완성 가능!</div>
+        <button class="btn-ron" onclick="actionRon('steal')">론 선언 (상대 점수 강탈)</button>
+        <button class="btn-win" onclick="actionRon('direct')" style="margin-left:6px;">완성 선언 (점수 획득)</button>
+      </div>
+
+      <hr style="border: 0.5px solid #334155; margin: 14px 0;">
+
+      <div style="text-align: center;">
+        <div id="yaku-badge" class="yaku-badge" style="display:none;"></div>
+      </div>
+
+      <div class="sec-label">내 손패 (패 클릭: 버리기 | ◀, ▶ / 드래그: 순서 이동 | ↻: 위아래 뒤집기)</div>
+      <div class="hand-container" id="my-hand"></div>
+
+      <div id="ready-panel" style="display:none; margin-top: 15px; background: #0f172a; padding: 16px; border-radius: 10px;">
+        <h3 id="panel-title" style="margin-top:0; text-align:center; color:#facc15;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
+        <div id="settlement-list" style="margin-bottom: 14px;"></div>
+        <div style="text-align:center;">
+          <button id="btn-ready" onclick="actionNextStep()" style="background:#10b981; font-size: 15px; padding: 10px 24px;">다음 판 준비</button>
+          <div id="ready-status" style="font-size: 12px; color: #94a3b8; margin-top: 6px;"></div>
+        </div>
+      </div>
+
+      <!-- 접기/열기 가능한 역 일람표 -->
+      <div class="yaku-guide-wrap">
+        <div class="yaku-header" onclick="toggleYakuGuide()">
+          <h3>📜 역(족보) 일람 및 예시 안내</h3>
+          <button type="button" class="btn-toggle-guide" id="btn-toggle-guide">설명서 접기 ▲</button>
+        </div>
+        
+        <div class="yaku-grid" id="yaku-grid">
+          <!-- 무쌍 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>무쌍</span> <span>9점 (3+★6)</span></div>
+            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
+            </div>
+          </div>
+
+          <!-- 개화 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>개화 (하우스 룰)</span> <span>8점 + ★보너스</span></div>
+            <div class="yaku-desc">위쪽은 1~6, 아래쪽은 6~1로 마주 보며 피어나는 형태</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
+            </div>
+          </div>
+
+          <!-- 연쇄 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>연쇄 (하우스 룰)</span> <span>6점 (보너스 무시)</span></div>
+            <div class="yaku-desc">1부터 6까지 꼬리를 물며 순환하는 도미노 체인</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
+            </div>
+          </div>
+
+          <!-- 육화 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>육화</span> <span>6점 + ★보너스</span></div>
+            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <span class="m-arrow">➔</span>
+            </div>
+          </div>
+
+          <!-- 삼동 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>삼동</span> <span>5점 + ★보너스</span></div>
+            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <span class="m-group-sep">|</span>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <span class="m-group-sep">|</span>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
+            </div>
+          </div>
+
+          <!-- 휘광 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>휘광</span> <span>5점 (보너스 무시)</span></div>
+            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
+            </div>
+          </div>
+
+          <!-- 삼연 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>삼연</span> <span>3점 + ★보너스</span></div>
+            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
+              <span class="m-group-sep">|</span>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
+            </div>
+          </div>
+
+          <!-- 삼색 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>삼색</span> <span>3점 (겸사겸사 전용)</span></div>
+            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
+            </div>
+          </div>
+
+          <!-- 동형 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>동형 (하우스 룰)</span> <span>1점 + ★보너스</span></div>
+            <div class="yaku-desc">위쪽 숫자가 1이 1개, 2가 2개, 3이 3개 형태 (아래 무관)[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <span class="m-group-sep">|</span>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <span class="m-group-sep">|</span>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+            </div>
+          </div>
+
+          <!-- 일색 -->
+          <div class="yaku-card">
+            <div class="yaku-title"><span>일색</span> <span>1점 + ★보너스</span></div>
+            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+            </div>
+          </div>
+
+          <!-- 보너스 -->
+          <div class="yaku-card" style="border-color:#38bdf8;">
+            <div class="yaku-title"><span style="color:#38bdf8;">★ 보너스 & 리치</span> <span>각 +1점</span></div>
+            <div class="yaku-desc">
+              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)[cite: 4]<br>
+              • <strong>리치</strong>: 텐파이 상태에서 선언 후 완성 시 +1점[cite: 2]
+            </div>
+            <div class="visual-example" style="justify-content: flex-start; gap: 8px;">
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
+              <span style="font-size:12px; color:#cbd5e1;">더블 타일 = <strong>★ +1점</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    let myPlayer = null;
+    let isMyTurn = false;
+    let currentPhase = '';
+    let riichiPending = false;
+    let myRiichiActive = false;
+    let lastDrawnId = null;
+    let currentHand = [];
+    let draggedTileId = null;
+    let isGuideOpen = true;
+
+    function openSingleSetup() {
+      document.getElementById('single-diff-setup').style.display = 'block';
+    }
+
+    function startSingleMode() {
+      const diff = document.querySelector('input[name="ai-diff"]:checked').value;
+      ws.send(JSON.stringify({ action: 'select_mode', mode: 'single', diff: diff }));
+    }
+
+    function selectMultiMode() {
+      ws.send(JSON.stringify({ action: 'select_mode', mode: 'multi' }));
+    }
+
+    function actionGoHome() {
+      ws.send(JSON.stringify({ action: 'go_home' }));
+    }
+
+    function toggleYakuGuide() {
+      isGuideOpen = !isGuideOpen;
+      const grid = document.getElementById('yaku-grid');
+      const btn = document.getElementById('btn-toggle-guide');
+      if (isGuideOpen) {
+        grid.style.display = 'grid';
+        btn.innerText = '설명서 접기 ▲';
+      } else {
+        grid.style.display = 'none';
+        btn.innerText = '설명서 열기 ▼';
+      }
+    }
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'full') {
+        alert(data.msg);
+        return;
+      }
+
+      if (data.mode === 'none') {
+        document.getElementById('mode-panel').style.display = 'block';
+        document.getElementById('lobby-panel').style.display = 'none';
+        document.getElementById('game-panel').style.display = 'none';
+        document.getElementById('single-diff-setup').style.display = 'none';
+        document.getElementById('top-mode-badge').innerText = '';
+        myPlayer = null;
+        return;
+      }
+
+      myPlayer = data.player_num;
+      isMyTurn = data.my_turn;
+      currentPhase = data.phase;
+      myRiichiActive = data.riichi[myPlayer];
+      lastDrawnId = data.last_drawn_id;
+      currentHand = data.my_hand || [];
+
+      const topBadge = document.getElementById('top-mode-badge');
+      if (data.mode === 'single') {
+        const diffKo = { 'low': '하', 'mid': '중', 'high': '상' }[data.ai_diff];
+        topBadge.innerText = `🤖 1인 모드 (난이도: ${diffKo})`;
+      } else if (data.mode === 'multi') {
+        topBadge.innerText = `👥 2인 모드 (온라인 대전)`;
+      }
+
+      if (!data.game_started) {
+        document.getElementById('mode-panel').style.display = 'none';
+        document.getElementById('lobby-panel').style.display = 'block';
+        document.getElementById('game-panel').style.display = 'none';
+
+        const roleEl = document.getElementById('lobby-my-role');
+        if (data.mode === 'single') {
+          roleEl.innerText = `👤 나 (1P) vs 🤖 AI (2P)`;
+          document.getElementById('lobby-heading').innerText = '🔥 1인 연습 대전 준비';
+        } else {
+          roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
+          document.getElementById('lobby-heading').innerText = '🔥 2인 온라인 대전 로비';
+        }
+
+        if (document.activeElement !== document.getElementById('inp-target')) {
+          document.getElementById('inp-target').value = data.target_score;
+        }
+        document.getElementById('sel-time').value = data.time_limit;
+
+        document.getElementById('btn-lobby-ready').disabled = data.ready[myPlayer];
+        document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 시작 / 준비';
+        
+        if (data.mode === 'single') {
+          document.getElementById('lobby-status').innerText = '준비 완료를 누르면 바로 대전이 시작됩니다.';
+        } else {
+          document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+        }
+        return;
+      }
+
+      document.getElementById('mode-panel').style.display = 'none';
+      document.getElementById('lobby-panel').style.display = 'none';
+      document.getElementById('game-panel').style.display = 'block';
+
+      if (currentPhase === 'draw' && !myRiichiActive) {
+        riichiPending = false;
+        document.getElementById('btn-riichi').style.outline = 'none';
+      }
+
+      document.getElementById('p1-score').innerText = `${data.scores[1]}점`;
+      document.getElementById('p2-score').innerText = `${data.scores[2]}점`;
+      document.getElementById('target-score-txt').innerText = data.target_score;
+      document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
+      document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
+
+      if (data.mode === 'single') {
+        document.getElementById('p1-label').innerText = '나 (1P)';
+        document.getElementById('p2-label').innerText = 'AI (2P)';
+      } else {
+        document.getElementById('p1-label').innerText = (myPlayer === 1) ? '1P (나)' : '1P';
+        document.getElementById('p2-label').innerText = (myPlayer === 2) ? '2P (나)' : '2P';
+      }
+
+      const p1Box = document.getElementById('p1-score-box');
+      const p2Box = document.getElementById('p2-score-box');
+      if (data.game_started && !data.show_all) {
+        if (data.current_turn === 1) {
+          p1Box.classList.add('active-turn');
+          p2Box.classList.remove('active-turn');
+        } else {
+          p2Box.classList.add('active-turn');
+          p1Box.classList.remove('active-turn');
+        }
+      } else {
+        p1Box.classList.remove('active-turn');
+        p2Box.classList.remove('active-turn');
+      }
+
+      const timerBox = document.getElementById('timer-box');
+      if (data.time_limit > 0) {
+        timerBox.style.display = 'inline-flex';
+        document.getElementById('timer-val').innerText = data.time_left;
+        if (data.time_left <= 10) timerBox.classList.add('timer-warn');
+        else timerBox.classList.remove('timer-warn');
+      } else {
+        timerBox.style.display = 'none';
+      }
+
+      const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
+      document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
+
+      // 상태바 메시지 우선순위 (AI 알림 > 게임 오버/라운드 종료 > 내 턴 액션 안내)
+      if (data.status_notice) {
+        document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-weight:bold;">${data.status_notice}</span>`;
+      } else if (data.show_all) {
+        document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
+      } else if (isMyTurn) {
+        if (currentPhase === 'draw') {
+          if (data.can_ron) {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">내 차례: [론 선언]이 가능합니다! 또는 [패 뽑기]를 진행하세요</span>`;
+          } else {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
+          }
+        } else {
+          if (riichiPending) {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
+          } else {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
+          }
+        }
+      } else {
+        const oppName = (data.mode === 'single') ? 'AI' : '상대방';
+        document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
+      }
+
+      document.getElementById('deck-count').innerText = data.deck_count;
+      document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
+
+      const btnRiichi = document.getElementById('btn-riichi');
+      btnRiichi.style.display = 'inline-block';
+      if (myRiichiActive) {
+        btnRiichi.disabled = true;
+        btnRiichi.innerText = '리치 완료';
+        btnRiichi.style.outline = 'none';
+      } else {
+        btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard');
+        btnRiichi.innerText = riichiPending ? '리치 취소' : '리치 선언';
+      }
+
+      document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
+      document.getElementById('ron-modal').style.display = data.can_ron ? 'block' : 'none';
+
+      const yakuBadge = document.getElementById('yaku-badge');
+      if (data.current_yaku) {
+        yakuBadge.style.display = 'inline-block';
+        yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.base_score}점 + ★ ${data.current_yaku.stars}개)`;
+      } else {
+        yakuBadge.style.display = 'none';
+      }
+
+      const discardsDiv = document.getElementById('discards');
+      discardsDiv.innerHTML = '';
+      data.discards.forEach((t, idx) => {
+        const isLast = (idx === data.discards.length - 1);
+        const tileEl = createTileEl(t, false, false, isLast, false);
+        if (canTakeFromDiscard) {
+          tileEl.classList.add('selectable-discard');
+          tileEl.onclick = () => actionDraw(t.id);
+        }
+        discardsDiv.appendChild(tileEl);
+      });
+
+      const oppHandDiv = document.getElementById('opp-hand');
+      oppHandDiv.innerHTML = '';
+      if (data.show_all && data.opp_hand) {
+        document.getElementById('opp-hand-label').innerText = `(${data.opp_hand.length}장 공개)`;
+        data.opp_hand.forEach(t => oppHandDiv.appendChild(createTileEl(t, false, false, false, false)));
+      } else {
+        document.getElementById('opp-hand-label').innerText = '';
+        for (let i = 0; i < data.opp_hand_count; i++) {
+          oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
+        }
+      }
+
+      const myHandDiv = document.getElementById('my-hand');
+      myHandDiv.innerHTML = '';
+      currentHand.forEach((t, idx) => {
+        const isDrawn = (t.id === lastDrawnId);
+        const isLocked = myRiichiActive && (currentHand.length === 6) && (t.id !== lastDrawnId);
+        
+        const wrap = document.createElement('div');
+        wrap.className = 'tile-wrap';
+        wrap.draggable = true;
+
+        wrap.ondragstart = (e) => { draggedTileId = t.id; };
+        wrap.ondragover = (e) => { e.preventDefault(); };
+        wrap.ondrop = (e) => {
+          e.preventDefault();
+          if (draggedTileId && draggedTileId !== t.id) {
+            reorderHand(draggedTileId, t.id);
+          }
+        };
+
+        const leftBtn = document.createElement('div');
+        leftBtn.className = 'tile-ctrl-btn btn-move-left';
+        leftBtn.innerText = '◀';
+        leftBtn.title = '왼쪽으로 이동';
+        leftBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, -1); };
+
+        const rightBtn = document.createElement('div');
+        rightBtn.className = 'tile-ctrl-btn btn-move-right';
+        rightBtn.innerText = '▶';
+        rightBtn.title = '오른쪽으로 이동';
+        rightBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, 1); };
+
+        const flipBtn = document.createElement('div');
+        flipBtn.className = 'tile-ctrl-btn btn-flip';
+        flipBtn.innerText = '↻';
+        flipBtn.title = '위아래 뒤집기';
+        flipBtn.onclick = (e) => { e.stopPropagation(); actionFlip(t.id); };
+
+        const el = createTileEl(t, true, isLocked, false, isDrawn);
+        wrap.appendChild(leftBtn);
+        wrap.appendChild(rightBtn);
+        wrap.appendChild(flipBtn);
+        wrap.appendChild(el);
+        myHandDiv.appendChild(wrap);
+      });
+
+      const readyPanel = document.getElementById('ready-panel');
+      if (data.show_all) {
+        readyPanel.style.display = 'block';
+        const isGameOver = (data.phase === 'game_over');
+        
+        document.getElementById('panel-title').innerText = isGameOver ? '👑 최종 승리 결정!' : '🏆 라운드 종료 (패 공개 및 점수 정산)';
+        
+        const setList = document.getElementById('settlement-list');
+        setList.innerHTML = '';
+        if (data.settlements && data.settlements.length > 0) {
+          data.settlements.forEach(s => {
+            const card = document.createElement('div');
+            card.className = `settlement-card ${s.type === '겸사겸사' ? 'incidental' : 'win'}`;
+            card.innerText = s.text;
+            setList.appendChild(card);
+          });
+        }
+
+        const btnReady = document.getElementById('btn-ready');
+        if (isGameOver) {
+          btnReady.innerText = '게임 초기화 (새 게임)';
+          btnReady.style.background = '#e11d48';
+          btnReady.disabled = false;
+          document.getElementById('ready-status').innerText = '누구든 클릭 시 로비로 돌아갑니다.';
+        } else {
+          const myReady = data.ready[myPlayer];
+          btnReady.innerText = myReady ? '준비 완료 (대기 중)' : '다음 판 준비';
+          btnReady.style.background = '#10b981';
+          btnReady.disabled = (data.mode === 'multi' && myReady);
+          if (data.mode === 'single') {
+            document.getElementById('ready-status').innerText = '클릭하면 즉시 다음 판을 시작합니다.';
+          } else {
+            document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+          }
+        }
+      } else {
+        readyPanel.style.display = 'none';
+      }
+    };
+
+    function createTileEl(t, isHand, isLocked, isLastDiscard, isDrawn) {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      if (isLocked) el.classList.add('locked');
+      if (isLastDiscard) el.classList.add('last-discard');
+      if (isDrawn) el.classList.add('drawn-highlight');
+
+      const starHtml = t.is_double ? '<span class="star-mark">★</span>' : '';
+      el.innerHTML = `
+        <div class="tile-half num-${t.top}">${t.top}</div>
+        <div class="tile-divider">${starHtml}</div>
+        <div class="tile-half num-${t.bottom}">${t.bottom}</div>
+      `;
+
+      if (isHand && !isLocked) {
+        el.onclick = () => discardTile(t.id);
+      }
+      return el;
+    }
+
+    function moveTileRelative(fromIdx, dir) {
+      const toIdx = fromIdx + dir;
+      if (toIdx < 0 || toIdx >= currentHand.length) return;
+      const ids = currentHand.map(t => t.id);
+      const temp = ids[fromIdx];
+      ids[fromIdx] = ids[toIdx];
+      ids[toIdx] = temp;
+      ws.send(JSON.stringify({ action: 'reorder', order: ids }));
+    }
+
+    function reorderHand(sourceId, targetId) {
+      const ids = currentHand.map(t => t.id);
+      const sIdx = ids.indexOf(sourceId);
+      const tIdx = ids.indexOf(targetId);
+      if (sIdx === -1 || tIdx === -1) return;
+      ids.splice(sIdx, 1);
+      ids.splice(tIdx, 0, sourceId);
+      ws.send(JSON.stringify({ action: 'reorder', order: ids }));
+    }
+
+    function actionFlip(tileId) {
+      ws.send(JSON.stringify({ action: 'flip', tile_id: tileId }));
+    }
+
+    function actionDraw(discardId) {
+      if (!isMyTurn || currentPhase !== 'draw') return;
+      ws.send(JSON.stringify({ action: 'draw', discard_id: discardId }));
+    }
+
+    function toggleRiichiMode() {
+      riichiPending = !riichiPending;
+      const btn = document.getElementById('btn-riichi');
+      if (riichiPending) {
+        btn.style.outline = '3px solid #facc15';
+        btn.innerText = '리치 취소';
+        document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
+      } else {
+        btn.style.outline = 'none';
+        btn.innerText = '리치 선언';
+        document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
+      }
+    }
+
+    function discardTile(tileId) {
+      if (!isMyTurn || currentPhase !== 'discard') {
+        return;
+      }
+      ws.send(JSON.stringify({ action: 'discard', tile_id: tileId, riichi: riichiPending }));
+      riichiPending = false;
+      document.getElementById('btn-riichi').style.outline = 'none';
+    }
+
+    function actionTsumo() {
+      ws.send(JSON.stringify({ action: 'tsumo' }));
+    }
+
+    function actionRon(mode) {
+      ws.send(JSON.stringify({ action: 'ron', mode: mode }));
+    }
+
+    function actionLobbyReady() {
+      ws.send(JSON.stringify({ action: 'ready' }));
+    }
+
+    function actionNextStep() {
+      if (currentPhase === 'game_over') {
+        ws.send(JSON.stringify({ action: 'reset_game' }));
+      } else {
+        ws.send(JSON.stringify({ action: 'ready_next' }));
+      }
+    }
+
+    function sendSettings() {
+      let scoreVal = parseInt(document.getElementById('inp-target').value, 10);
+      if (isNaN(scoreVal) || scoreVal <= 0) scoreVal = 1;
+      const timeVal = document.getElementById('sel-time').value;
+      ws.send(JSON.stringify({ action: 'set_settings', score: scoreVal, time: timeVal }));
+    }
+  </script>
+</body>
+</html>
