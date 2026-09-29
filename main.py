@@ -400,7 +400,7 @@ class GameSession:
         return best_pot
 
     async def execute_ai_step(self, ws: WebSocket):
-        """AI 턴 진행: 즉시 패를 가져오고 -> 패를 쥐고 1.5초 고민 후 -> 패를 버림"""
+        """AI 턴 진행: 턴이 오면 즉시 패를 가져오고 -> 화면에 가져온 패가 표시된 채로 고민하면서 타이머가 흐르고 -> 패를 버림"""
         if self.ai_thinking or not self.game_started or self.current_turn != 2:
             return
 
@@ -408,8 +408,8 @@ class GameSession:
         try:
             opp_riichi = self.riichi[1]
 
-            # 1. 패 가져오기 (0.3초 후 바로 가져와서 6장 상태로 만듦)
-            await asyncio.sleep(0.3)
+            # 1. DRAW 단계: 0.2초만에 신속하게 패를 집어옵니다.
+            await asyncio.sleep(0.2)
             if not self.game_started or self.current_turn != 2 or self.turn_phase != "draw":
                 return
 
@@ -451,15 +451,24 @@ class GameSession:
             else:
                 self.status_notice = f"🤖 AI가 바닥에서 {picked_info}을(를) 가져왔습니다. 버릴 패를 고민 중..."
 
-            # 패를 가져온 즉시 클라이언트에 화면을 갱신 (상대패 6장 됨)
+            # 6장이 된 상태를 즉시 화면에 전송
             await send_state_to_ws(ws, self, 1)
 
-            # 2. 패를 쥐고 1.5초 동안 충분히 고민한 뒤 버림
-            await asyncio.sleep(1.5)
+            # 2. 패를 손에 쥔 채로 1.8초 동안 고민 (이 동안에도 0.1초마다 계속 클라이언트에 갱신 전송하여 타이머가 실시간으로 흐름)
+            think_duration = 1.8
+            elapsed = 0.0
+            while elapsed < think_duration:
+                await asyncio.sleep(0.1)
+                elapsed += 0.1
+                if not self.game_started or self.current_turn != 2:
+                    return
+                # 고민하는 동안 타이머 숫자가 프론트엔드에 즉각 반영되도록 전송
+                await send_state_to_ws(ws, self, 1)
+
             if not self.game_started or self.current_turn != 2 or self.turn_phase != "discard":
                 return
 
-            # 쯔모 검사
+            # 쯔모 완성 검사
             if evaluate_hand(self.players[2], is_incidental=False):
                 self.declare_tsumo(2)
                 self.status_notice = None
@@ -468,7 +477,7 @@ class GameSession:
 
             hand = self.players[2]
 
-            # 리치 상태인 경우 뽑은 패 방출
+            # 리치 상태인 경우 뽑아온 패 방출
             if self.riichi[2]:
                 chosen = next((t for t in hand if t["id"] == self.last_drawn_id[2]), hand[-1])
                 self.discard_tile(2, chosen["id"], declare_riichi=False)
@@ -509,7 +518,7 @@ class GameSession:
                     elif self.ai_diff == "high":
                         should_riichi = (best_live_outs >= 2 and best_score >= 35)
 
-            # 패 버리기 실행
+            # 패 버리기 확정
             self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
             self.status_notice = None
             await send_state_to_ws(ws, self, 1)
@@ -576,18 +585,18 @@ async def broadcast_multi():
         await send_state_to_ws(ws, multi_game, p_num)
 
 async def timer_background_task():
-    """타이머는 독립적으로 정확히 1초씩 감소하며 AI 행동에 묶이지 않음"""
+    """서버 시계 루프: 매초마다 타이머를 1초씩 깎고, 비동기 AI 행동과 분리 실행"""
     while True:
         try:
             await asyncio.sleep(1)
-            # 2인 모드 타이머
+            # 2인 모드
             if multi_game.game_started and multi_game.turn_phase in ["draw", "discard"] and multi_game.time_limit > 0:
                 multi_game.time_left -= 1
                 if multi_game.time_left <= 0:
                     multi_game.handle_timeout()
                 await broadcast_multi()
 
-            # 1인 모드 타이머
+            # 1인 모드
             for ws, s_game in list(single_sessions.items()):
                 if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
                     s_game.time_left -= 1
@@ -595,7 +604,7 @@ async def timer_background_task():
                         s_game.handle_timeout()
                     await send_state_to_ws(ws, s_game, 1)
 
-                # AI 차례 감지 시 별도 비동기 태스크로 실행 (타이머 블로킹 방지)
+                # AI의 차례가 오면 백그라운드 태스크로 분리하여 실행
                 if s_game.game_started and s_game.current_turn == 2 and not s_game.ai_thinking:
                     asyncio.create_task(s_game.execute_ai_step(ws))
 
@@ -701,10 +710,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
-                        active_game.game_started = True
                         active_game.reset_round()
                     elif active_game.ready[1] and active_game.ready[2]:
-                        active_game.game_started = True
                         active_game.reset_round()
                 elif act == "reset_game":
                     active_game.scores = {1: 0, 2: 0}
