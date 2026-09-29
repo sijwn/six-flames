@@ -10,7 +10,6 @@ def is_same_tile(t1, t2):
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
 def evaluate_hand(tiles, is_incidental=False):
-    """6개 타일 기준 역 판정 (is_incidental: 겸사겸사 완성 여부)"""
     if len(tiles) != 6:
         return None
 
@@ -22,20 +21,17 @@ def evaluate_hand(tiles, is_incidental=False):
     best_name = None
     best_score = -1
 
-    # 1. 휘광 (5점)
     if star_count == 6:
         if 5 > best_score:
             best_name = "휘광"
             best_score = 5
 
-    # 2. 육화 (6점 + 별보너스)
     if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
         score = 6 + star_count
         if score > best_score:
             best_name = "육화"
             best_score = score
 
-    # 3. 삼동 (5점 + 별보너스)
     for p in permutations(tiles):
         if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
             score = 5 + star_count
@@ -44,13 +40,11 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_score = score
             break
 
-    # 4. 삼색 (3점) - 겸사겸사 완성 전용
     if is_incidental and len(all_nums) <= 3:
         if 3 > best_score:
             best_name = "삼색"
             best_score = 3
 
-    # 5. 삼연 (3점 + 별보너스)
     for s1_idx in combinations(range(6), 3):
         s2_idx = [i for i in range(6) if i not in s1_idx]
         s1 = [tiles[i] for i in s1_idx]
@@ -71,7 +65,6 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_score = score
             break
 
-    # 6. 일색 (1점 + 별보너스)
     if len(set(bottoms)) == 1:
         score = 1 + star_count
         if score > best_score:
@@ -184,7 +177,7 @@ class SixFlamesGame:
         self.players[p_num].append(tile)
         self.last_drawn_id[p_num] = tile["id"]
         self.turn_phase = "discard"
-        self.reset_timer()
+        # 패를 뽑아도 타이머를 리셋하지 않고 남은 시간을 그대로 소진함
         return True
 
     def discard_tile(self, p_num, tile_id, declare_riichi=False):
@@ -222,22 +215,13 @@ class SixFlamesGame:
         self.reset_timer()
 
     def handle_timeout(self):
-        """제한시간 초과 시 자동 행동 강제 집행"""
+        """제한시간 초과 시 처리 로직"""
         p = self.current_turn
         if self.turn_phase == "draw":
-            # 1. 패를 뽑지 않은 상태면 덱에서 뽑고 바로 그 패를 버려 턴 넘김
-            if self.deck:
-                drawn = self.deck.pop()
-                self.discards.append(drawn)
-                self.last_discard = drawn
-            else:
-                self.turn_phase = "round_end"
-                self.win_reason = "유국 (패산 소진)"
-                self.check_round_end_incidentals(winner_num=None)
-                return
+            # 패를 안 뽑은 상태면 아무것도 하지 않고 즉시 턴 넘김
             self.pass_turn()
         elif self.turn_phase == "discard":
-            # 2. 이미 패를 뽑은 상태면, 이번에 뽑은 패를 버림 (없으면 손패 마지막 패 버림)
+            # 패를 뽑은 상태면 방금 뽑은 패를 즉시 바닥으로 내려놓고 턴 넘김
             tid_to_discard = self.last_drawn_id.get(p)
             hand = self.players[p]
             target = next((t for t in hand if t["id"] == tid_to_discard), None)
@@ -249,7 +233,6 @@ class SixFlamesGame:
                 self.last_discard = target
             self.pass_turn()
         elif self.turn_phase == "ron_wait":
-            # 3. 론 대기 상태에서 시간 초과 시 자동 패스
             self.pass_turn()
 
     def declare_tsumo(self, p_num):
@@ -366,7 +349,6 @@ async def timer_background_task():
     while True:
         try:
             await asyncio.sleep(1)
-            # 게임이 진행 중이고 무제한(0)이 아닐 때만 카운트다운
             if game.game_started and game.turn_phase in ["draw", "discard", "ron_wait"] and game.time_limit > 0:
                 game.time_left -= 1
                 if game.time_left <= 0:
@@ -377,7 +359,6 @@ async def timer_background_task():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 서버 기동 시 타이머 백그라운드 태스크 보장
     task = asyncio.create_task(timer_background_task())
     yield
     task.cancel()
