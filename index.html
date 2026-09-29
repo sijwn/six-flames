@@ -242,6 +242,7 @@
       const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
       document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
 
+      // 상태 안내바 (리치 선언 대기 상태 반영)
       if (data.show_all) {
         document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
       } else if (isMyTurn) {
@@ -252,7 +253,11 @@
             document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
           }
         } else {
-          document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
+          if (riichiPending) {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
+          } else {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
+          }
         }
       } else {
         document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">상대방 차례 진행 중...</span>`;
@@ -266,9 +271,10 @@
       if (myRiichiActive) {
         btnRiichi.disabled = true;
         btnRiichi.innerText = '리치 완료';
+        btnRiichi.style.outline = 'none';
       } else {
         btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard' && data.can_riichi);
-        btnRiichi.innerText = '리치 선언';
+        btnRiichi.innerText = riichiPending ? '리치 취소' : '리치 선언';
       }
 
       document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
@@ -441,15 +447,17 @@
       const btn = document.getElementById('btn-riichi');
       if (riichiPending) {
         btn.style.outline = '3px solid #facc15';
-        alert('리치 상태로 버릴 패를 선택하세요!');
+        btn.innerText = '리치 취소';
+        document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
       } else {
         btn.style.outline = 'none';
+        btn.innerText = '리치 선언';
+        document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
       }
     }
 
     function discardTile(tileId) {
       if (!isMyTurn || currentPhase !== 'discard') {
-        alert('지금은 패를 버릴 수 없습니다.');
         return;
       }
       ws.send(JSON.stringify({ action: 'discard', tile_id: tileId, riichi: riichiPending }));
