@@ -1,496 +1,501 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>여섯 불꽃 온라인</title>
-  <style>
-    :root {
-      --c1: #ef4444; --c2: #f97316; --c3: #eab308;
-      --c4: #10b981; --c5: #3b82f6; --c6: #a855f7;
-    }
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 12px; }
-    .container { max-width: 780px; margin: 0 auto; background: #1e293b; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
-    
-    .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
-    .score-box { text-align: center; }
-    .score-val { font-size: 24px; font-weight: bold; color: #f59e0b; }
-    .riichi-badge { background: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 6px; animation: pulse 1s infinite alternate; }
-    @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; } }
+import random
+import asyncio
+from contextlib import asynccontextmanager
+from itertools import combinations, permutations
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 
-    .timer-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 4px; }
-    .timer-warn { color: #ef4444; animation: pulse 0.5s infinite alternate; }
+def is_same_tile(t1, t2):
+    return (t1["top"] == t2["top"] and t1["bottom"] == t2["bottom"]) or \
+           (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
-    .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
-    .tile-wrap { position: relative; display: inline-block; padding-top: 14px; }
-    .tile {
-      display: inline-flex;
-      flex-direction: column;
-      justify-content: space-between;
-      width: 44px;
-      height: 76px;
-      background: #fafafa;
-      border-radius: 6px;
-      cursor: pointer;
-      user-select: none;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      border: 2px solid transparent;
-      transition: transform 0.1s, border-color 0.1s;
-    }
-    .tile:hover:not(.locked) { transform: translateY(-4px); }
-    .tile.locked { opacity: 0.5; cursor: not-allowed; }
-    .tile.drawn-highlight { border: 2px solid #38bdf8 !important; box-shadow: 0 0 10px #38bdf8 !important; }
-    .tile.last-discard { border: 2px solid #facc15; box-shadow: 0 0 10px #facc15; }
-    .tile.selectable-discard { border: 2px dashed #4ade80 !important; cursor: pointer !important; }
-    .tile.selectable-discard:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 0 12px #4ade80; }
+def evaluate_hand(tiles, is_incidental=False):
+    if len(tiles) != 6:
+        return None
 
-    .tile-ctrl-btn {
-      position: absolute; top: 0; background: #334155; color: #cbd5e1;
-      border: 1px solid #64748b; border-radius: 4px; width: 14px; height: 14px;
-      font-size: 9px; line-height: 12px; text-align: center; cursor: pointer; z-index: 5;
-    }
-    .tile-ctrl-btn:hover { background: #3b82f6; color: #fff; }
-    .btn-move-left { left: 0; }
-    .btn-move-right { left: 16px; }
-    .btn-flip { right: 0; border-radius: 50%; width: 16px; height: 16px; line-height: 14px; font-size: 10px; }
+    star_count = sum(1 for t in tiles if t["is_double"])
+    bottoms = [t["bottom"] for t in tiles]
+    tops = [t["top"] for t in tiles]
+    all_nums = set(tops + bottoms)
 
-    .tile-half { font-weight: 900; font-size: 19px; height: 33px; display: flex; align-items: center; justify-content: center; }
-    .tile-divider { height: 1px; background: #cbd5e1; position: relative; }
-    .star-mark { position: absolute; top: -7px; left: calc(50% - 6px); font-size: 10px; color: #ef4444; background: #fafafa; border-radius: 50%; line-height: 12px; width: 12px; text-align: center; }
+    best_name = None
+    best_base = -1
+    best_stars = 0
 
-    .num-1 { color: var(--c1); } .num-2 { color: var(--c2); } .num-3 { color: var(--c3); }
-    .num-4 { color: var(--c4); } .num-5 { color: var(--c5); } .num-6 { color: var(--c6); }
-    .tile-back { background: #334155; border: 2px dashed #64748b; width: 38px; height: 66px; cursor: default; }
-
-    .action-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 0; }
-    button { background: #3b82f6; color: white; border: none; padding: 10px 16px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
-    button:disabled { background: #475569; cursor: not-allowed; opacity: 0.5; }
-    button.btn-win { background: #10b981; }
-    button.btn-ron { background: #f59e0b; }
-    button.btn-riichi { background: #ef4444; }
-
-    .yaku-badge { background: #10b981; color: white; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold; display: inline-block; margin-bottom: 8px; }
-    .discards-box { background: #0f172a; border-radius: 8px; padding: 8px; min-height: 85px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-    .sec-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin-top: 10px; }
-
-    .settlement-card { background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 8px 12px; margin: 6px 0; text-align: left; font-size: 14px; }
-    .settlement-card.win { border-left-color: #4ade80; }
-    .settlement-card.incidental { border-left-color: #facc15; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
-      <h2>🔥 여섯 불꽃 로비</h2>
-      <div id="lobby-settings" style="margin: 15px 0;">
-        <label>목표 점수: </label>
-        <input type="number" id="inp-target" value="10" min="1" max="999" 
-               oninput="sendSettings()" 
-               style="width: 70px; padding: 4px; text-align: center; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff; font-weight: bold; margin-right: 15px;">
-        
-        <label>턴 제한 시간: </label>
-        <select id="sel-time" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
-          <option value="30">30초</option>
-          <option value="60" selected>1분</option>
-          <option value="120">2분</option>
-          <option value="180">3분</option>
-          <option value="0">무제한</option>
-        </select>
-      </div>
-      <button id="btn-lobby-ready" onclick="actionLobbyReady()" style="background:#10b981; font-size:16px; padding:12px 28px;">게임 준비 완료</button>
-      <div id="lobby-status" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
-    </div>
-
-    <div id="game-panel">
-      <div class="scoreboard">
-        <div class="score-box">
-          <div style="font-size:13px; color:#94a3b8;">1P</div>
-          <div class="score-val" id="p1-score">0점</div>
-          <div id="p1-riichi-tag"></div>
-        </div>
-        <div style="text-align: center;">
-          <div style="font-size: 12px; color:#94a3b8;">목표: <span id="target-score-txt">10</span>점</div>
-          <div class="timer-badge" id="timer-box">⏱ <span id="timer-val">60</span>s</div>
-        </div>
-        <div class="score-box">
-          <div style="font-size:13px; color:#94a3b8;">2P</div>
-          <div class="score-val" id="p2-score">0점</div>
-          <div id="p2-riichi-tag"></div>
-        </div>
-      </div>
-
-      <div id="status-bar" style="text-align:center; font-weight:bold; margin: 10px 0;">접속 대기 중...</div>
-
-      <div class="sec-label">상대방 패 <span id="opp-hand-label"></span></div>
-      <div class="hand-container" id="opp-hand"></div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; margin: 6px 0;">
-        <span class="sec-label">버려진 패 (바닥) <span id="discard-hint" style="color:#4ade80; font-size:11px; display:none;">- 클릭해서 가져오기 가능</span></span>
-        <span style="font-size: 13px;">남은 패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
-      </div>
-      <div class="discards-box" id="discards"></div>
-
-      <!-- 액션 패널 -->
-      <div class="action-panel">
-        <button id="btn-draw" onclick="actionDraw(null)" disabled>패 뽑기</button>
-        <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
-        <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
-      </div>
-
-      <!-- 내 턴 시작 시 론 가능할 때 표시되는 액션 패널 -->
-      <div id="ron-modal" style="display:none; text-align:center; margin: 10px 0; background: #334155; padding: 12px; border-radius: 8px;">
-        <div style="color:#facc15; font-weight:bold; margin-bottom: 8px;">상대 버림패로 바로 완성 가능!</div>
-        <button class="btn-ron" onclick="actionRon('steal')">론 선언 (상대 점수 강탈)</button>
-        <button class="btn-win" onclick="actionRon('direct')" style="margin-left:6px;">완성 선언 (점수 획득)</button>
-      </div>
-
-      <hr style="border: 0.5px solid #334155; margin: 14px 0;">
-
-      <div style="text-align: center;">
-        <div id="yaku-badge" class="yaku-badge" style="display:none;"></div>
-      </div>
-
-      <div class="sec-label">내 손패 (패 클릭: 버리기 | ◀, ▶ / 드래그: 순서 이동 | ↻: 위아래 뒤집기)</div>
-      <div class="hand-container" id="my-hand"></div>
-
-      <div id="ready-panel" style="display:none; margin-top: 15px; background: #0f172a; padding: 16px; border-radius: 10px;">
-        <h3 id="panel-title" style="margin-top:0; text-align:center; color:#facc15;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
-        <div id="settlement-list" style="margin-bottom: 14px;"></div>
-        <div style="text-align:center;">
-          <button id="btn-ready" onclick="actionNextStep()" style="background:#10b981; font-size: 15px; padding: 10px 24px;">다음 판 준비</button>
-          <div id="ready-status" style="font-size: 12px; color: #94a3b8; margin-top: 6px;"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-    let myPlayer = null;
-    let isMyTurn = false;
-    let currentPhase = '';
-    let riichiPending = false;
-    let myRiichiActive = false;
-    let lastDrawnId = null;
-    let currentHand = [];
-    let draggedTileId = null;
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'wait') {
-        myPlayer = data.player_num;
-        document.getElementById('status-bar').innerText = '상대방의 접속을 기다리고 있습니다...';
-        return;
-      }
-      if (data.type === 'full') {
-        alert(data.msg);
-        return;
-      }
-
-      myPlayer = data.player_num;
-      isMyTurn = data.my_turn;
-      currentPhase = data.phase;
-      myRiichiActive = data.riichi[myPlayer];
-      lastDrawnId = data.last_drawn_id;
-      currentHand = data.my_hand || [];
-
-      if (currentPhase === 'draw' && !myRiichiActive) {
-        riichiPending = false;
-        document.getElementById('btn-riichi').style.outline = 'none';
-      }
-
-      if (!data.game_started) {
-        document.getElementById('lobby-panel').style.display = 'block';
-        document.getElementById('game-panel').style.display = 'none';
-        
-        const isHost = (myPlayer === 1);
-        document.getElementById('inp-target').disabled = !isHost;
-        document.getElementById('sel-time').disabled = !isHost;
-        
-        if (document.activeElement !== document.getElementById('inp-target')) {
-          document.getElementById('inp-target').value = data.target_score;
-        }
-        document.getElementById('sel-time').value = data.time_limit;
-
-        document.getElementById('btn-lobby-ready').disabled = data.ready[myPlayer];
-        document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 준비 완료';
-        document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
-        return;
-      } else {
-        document.getElementById('lobby-panel').style.display = 'none';
-        document.getElementById('game-panel').style.display = 'block';
-      }
-
-      document.getElementById('p1-score').innerText = `${data.scores[1]}점`;
-      document.getElementById('p2-score').innerText = `${data.scores[2]}점`;
-      document.getElementById('target-score-txt').innerText = data.target_score;
-      document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
-      document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
-
-      const timerBox = document.getElementById('timer-box');
-      if (data.time_limit > 0) {
-        timerBox.style.display = 'inline-flex';
-        document.getElementById('timer-val').innerText = data.time_left;
-        if (data.time_left <= 10) timerBox.classList.add('timer-warn');
-        else timerBox.classList.remove('timer-warn');
-      } else {
-        timerBox.style.display = 'none';
-      }
-
-      const oppPlayer = myPlayer === 1 ? 2 : 1;
-      const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
-      document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
-
-      // 상태 안내바 (리치 선언 대기 상태 반영)
-      if (data.show_all) {
-        document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
-      } else if (isMyTurn) {
-        if (currentPhase === 'draw') {
-          if (data.can_ron) {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">내 차례: [론 선언]이 가능합니다! 또는 [패 뽑기]를 진행하세요</span>`;
-          } else {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
-          }
-        } else {
-          if (riichiPending) {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
-          } else {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
-          }
-        }
-      } else {
-        document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">상대방 차례 진행 중...</span>`;
-      }
-
-      document.getElementById('deck-count').innerText = data.deck_count;
-      document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
-
-      const btnRiichi = document.getElementById('btn-riichi');
-      btnRiichi.style.display = 'inline-block';
-      if (myRiichiActive) {
-        btnRiichi.disabled = true;
-        btnRiichi.innerText = '리치 완료';
-        btnRiichi.style.outline = 'none';
-      } else {
-        btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard' && data.can_riichi);
-        btnRiichi.innerText = riichiPending ? '리치 취소' : '리치 선언';
-      }
-
-      document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
-      document.getElementById('ron-modal').style.display = data.can_ron ? 'block' : 'none';
-
-      const yakuBadge = document.getElementById('yaku-badge');
-      if (data.current_yaku) {
-        yakuBadge.style.display = 'inline-block';
-        yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.base_score}점 + ★ ${data.current_yaku.stars}개)`;
-      } else {
-        yakuBadge.style.display = 'none';
-      }
-
-      const discardsDiv = document.getElementById('discards');
-      discardsDiv.innerHTML = '';
-      data.discards.forEach((t, idx) => {
-        const isLast = (idx === data.discards.length - 1);
-        const tileEl = createTileEl(t, false, false, isLast, false);
-        if (canTakeFromDiscard) {
-          tileEl.classList.add('selectable-discard');
-          tileEl.onclick = () => actionDraw(t.id);
-        }
-        discardsDiv.appendChild(tileEl);
-      });
-
-      const oppHandDiv = document.getElementById('opp-hand');
-      oppHandDiv.innerHTML = '';
-      if (data.show_all && data.opp_hand) {
-        document.getElementById('opp-hand-label').innerText = `(${data.opp_hand.length}장 공개)`;
-        data.opp_hand.forEach(t => oppHandDiv.appendChild(createTileEl(t, false, false, false, false)));
-      } else {
-        document.getElementById('opp-hand-label').innerText = '';
-        for (let i = 0; i < data.opp_hand_count; i++) {
-          oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
-        }
-      }
-
-      const myHandDiv = document.getElementById('my-hand');
-      myHandDiv.innerHTML = '';
-      currentHand.forEach((t, idx) => {
-        const isDrawn = (t.id === lastDrawnId);
-        const isLocked = myRiichiActive && (currentHand.length === 6) && (t.id !== lastDrawnId);
-        
-        const wrap = document.createElement('div');
-        wrap.className = 'tile-wrap';
-        wrap.draggable = true;
-
-        wrap.ondragstart = (e) => { draggedTileId = t.id; };
-        wrap.ondragover = (e) => { e.preventDefault(); };
-        wrap.ondrop = (e) => {
-          e.preventDefault();
-          if (draggedTileId && draggedTileId !== t.id) {
-            reorderHand(draggedTileId, t.id);
-          }
-        };
-
-        const leftBtn = document.createElement('div');
-        leftBtn.className = 'tile-ctrl-btn btn-move-left';
-        leftBtn.innerText = '◀';
-        leftBtn.title = '왼쪽으로 이동';
-        leftBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, -1); };
-
-        const rightBtn = document.createElement('div');
-        rightBtn.className = 'tile-ctrl-btn btn-move-right';
-        rightBtn.innerText = '▶';
-        rightBtn.title = '오른쪽으로 이동';
-        rightBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, 1); };
-
-        const flipBtn = document.createElement('div');
-        flipBtn.className = 'tile-ctrl-btn btn-flip';
-        flipBtn.innerText = '↻';
-        flipBtn.title = '위아래 뒤집기';
-        flipBtn.onclick = (e) => { e.stopPropagation(); actionFlip(t.id); };
-
-        const el = createTileEl(t, true, isLocked, false, isDrawn);
-        wrap.appendChild(leftBtn);
-        wrap.appendChild(rightBtn);
-        wrap.appendChild(flipBtn);
-        wrap.appendChild(el);
-        myHandDiv.appendChild(wrap);
-      });
-
-      const readyPanel = document.getElementById('ready-panel');
-      if (data.show_all) {
-        readyPanel.style.display = 'block';
-        const isGameOver = (data.phase === 'game_over');
-        
-        document.getElementById('panel-title').innerText = isGameOver ? '👑 최종 승리 결정!' : '🏆 라운드 종료 (패 공개 및 점수 정산)';
-        
-        const setList = document.getElementById('settlement-list');
-        setList.innerHTML = '';
-        if (data.settlements && data.settlements.length > 0) {
-          data.settlements.forEach(s => {
-            const card = document.createElement('div');
-            card.className = `settlement-card ${s.type === '겸사겸사' ? 'incidental' : 'win'}`;
-            card.innerText = s.text;
-            setList.appendChild(card);
-          });
+    if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
+        best_name = "무쌍"
+        best_base = 3
+        best_stars = 6
+        return {
+            "name": best_name,
+            "base_score": best_base,
+            "stars": best_stars,
+            "total_score": best_base + best_stars
         }
 
-        const btnReady = document.getElementById('btn-ready');
-        if (isGameOver) {
-          btnReady.innerText = '게임 초기화 (로비로 이동)';
-          btnReady.style.background = '#e11d48';
-          btnReady.disabled = false;
-          document.getElementById('ready-status').innerText = '누구든 클릭 시 로비로 완전히 돌아갑니다.';
-        } else {
-          const myReady = data.ready[myPlayer];
-          btnReady.innerText = myReady ? '준비 완료 (상대 대기 중)' : '다음 판 준비';
-          btnReady.style.background = '#10b981';
-          btnReady.disabled = myReady;
-          document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+    if star_count == 6:
+        if 5 > best_base:
+            best_name = "휘광"
+            best_base = 5
+            best_stars = 0
+
+    if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
+        if 6 > best_base:
+            best_name = "육화"
+            best_base = 6
+            best_stars = star_count
+
+    for p in permutations(tiles):
+        if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
+            if 5 > best_base:
+                best_name = "삼동"
+                best_base = 5
+                best_stars = star_count
+            break
+
+    if is_incidental and len(all_nums) <= 3:
+        if 3 > best_base:
+            best_name = "삼색"
+            best_base = 3
+            best_stars = 0
+
+    for s1_idx in combinations(range(6), 3):
+        s2_idx = [i for i in range(6) if i not in s1_idx]
+        s1 = [tiles[i] for i in s1_idx]
+        s2 = [tiles[i] for i in s2_idx]
+        
+        c1 = (len(set(t["bottom"] for t in s1)) == 1)
+        st1 = sorted(t["top"] for t in s1)
+        seq1 = (len(st1) == 3 and st1[0] + 1 == st1[1] and st1[1] + 1 == st1[2])
+
+        c2 = (len(set(t["bottom"] for t in s2)) == 1)
+        st2 = sorted(t["top"] for t in s2)
+        seq2 = (len(st2) == 3 and st2[0] + 1 == st2[1] and st2[1] + 1 == st2[2])
+
+        if c1 and seq1 and c2 and seq2:
+            if 3 > best_base:
+                best_name = "삼연"
+                best_base = 3
+                best_stars = star_count
+            break
+
+    if len(set(bottoms)) == 1:
+        if 1 > best_base:
+            best_name = "일색"
+            best_base = 1
+            best_stars = star_count
+
+    if best_name:
+        return {
+            "name": best_name,
+            "base_score": best_base,
+            "stars": best_stars,
+            "total_score": best_base + best_stars
         }
-      } else {
-        readyPanel.style.display = 'none';
-      }
-    };
+    return None
 
-    function createTileEl(t, isHand, isLocked, isLastDiscard, isDrawn) {
-      const el = document.createElement('div');
-      el.className = 'tile';
-      if (isLocked) el.classList.add('locked');
-      if (isLastDiscard) el.classList.add('last-discard');
-      if (isDrawn) el.classList.add('drawn-highlight');
+def check_can_riichi(hand_5):
+    for t in range(1, 7):
+        for b in range(t, 7):
+            fake1 = {"id": "fake", "top": t, "bottom": b, "is_double": (t == b)}
+            fake2 = {"id": "fake", "top": b, "bottom": t, "is_double": (t == b)}
+            if evaluate_hand(hand_5 + [fake1], is_incidental=False) or evaluate_hand(hand_5 + [fake2], is_incidental=False):
+                return True
+    return False
 
-      const starHtml = t.is_double ? '<span class="star-mark">★</span>' : '';
-      el.innerHTML = `
-        <div class="tile-half num-${t.top}">${t.top}</div>
-        <div class="tile-divider">${starHtml}</div>
-        <div class="tile-half num-${t.bottom}">${t.bottom}</div>
-      `;
+def check_incidental_win(hand_5, discards):
+    best = None
+    for d in discards:
+        for flipped in [False, True]:
+            tile = dict(d)
+            if flipped:
+                tile["top"], tile["bottom"] = tile["bottom"], tile["top"]
+            res = evaluate_hand(hand_5 + [tile], is_incidental=True)
+            if res:
+                if best is None or res["total_score"] > best["total_score"]:
+                    best = res
+                    best["winning_tile"] = tile
+    return best
 
-      if (isHand && !isLocked) {
-        el.onclick = () => discardTile(t.id);
-      }
-      return el;
-    }
+class SixFlamesGame:
+    def __init__(self):
+        self.target_score = 10
+        self.time_limit = 60
+        self.time_left = 60
+        self.scores = {1: 0, 2: 0}
+        self.starter = random.choice([1, 2])
+        self.ready = {1: False, 2: False}
+        self.game_started = False
+        self.reset_round()
 
-    function moveTileRelative(fromIdx, dir) {
-      const toIdx = fromIdx + dir;
-      if (toIdx < 0 || toIdx >= currentHand.length) return;
-      const ids = currentHand.map(t => t.id);
-      const temp = ids[fromIdx];
-      ids[fromIdx] = ids[toIdx];
-      ids[toIdx] = temp;
-      ws.send(JSON.stringify({ action: 'reorder', order: ids }));
-    }
+    def reset_round(self):
+        unique = [(top, bottom) for top in range(1, 7) for bottom in range(top, 7)]
+        self.deck = []
+        tid = 0
+        for _ in range(2):
+            for top, bottom in unique:
+                tid += 1
+                self.deck.append({
+                    "id": f"t_{tid}", "top": top, "bottom": bottom, "is_double": (top == bottom)
+                })
+        random.shuffle(self.deck)
 
-    function reorderHand(sourceId, targetId) {
-      const ids = currentHand.map(t => t.id);
-      const sIdx = ids.indexOf(sourceId);
-      const tIdx = ids.indexOf(targetId);
-      if (sIdx === -1 || tIdx === -1) return;
-      ids.splice(sIdx, 1);
-      ids.splice(tIdx, 0, sourceId);
-      ws.send(JSON.stringify({ action: 'reorder', order: ids }));
-    }
+        self.players = {1: [], 2: []}
+        self.discards = []
+        self.riichi = {1: False, 2: False}
+        self.current_turn = self.starter
+        self.turn_phase = "lobby" if not self.game_started else "draw"
+        self.round_winner = None
+        self.round_settlement = []
+        self.last_drawn_id = {1: None, 2: None}
+        self.last_discard = None
+        self.ready = {1: False, 2: False}
+        self.time_left = self.time_limit
 
-    function actionFlip(tileId) {
-      ws.send(JSON.stringify({ action: 'flip', tile_id: tileId }));
-    }
+        for _ in range(5):
+            self.players[1].append(self.deck.pop())
+            self.players[2].append(self.deck.pop())
 
-    function actionDraw(discardId) {
-      if (!isMyTurn || currentPhase !== 'draw') return;
-      ws.send(JSON.stringify({ action: 'draw', discard_id: discardId }));
-    }
+    def reset_to_lobby(self):
+        self.scores = {1: 0, 2: 0}
+        self.game_started = False
+        self.starter = random.choice([1, 2])
+        self.reset_round()
+        self.turn_phase = "lobby"
 
-    function toggleRiichiMode() {
-      riichiPending = !riichiPending;
-      const btn = document.getElementById('btn-riichi');
-      if (riichiPending) {
-        btn.style.outline = '3px solid #facc15';
-        btn.innerText = '리치 취소';
-        document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
-      } else {
-        btn.style.outline = 'none';
-        btn.innerText = '리치 선언';
-        document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
-      }
-    }
+    def reset_timer(self):
+        self.time_left = self.time_limit
 
-    function discardTile(tileId) {
-      if (!isMyTurn || currentPhase !== 'discard') {
-        return;
-      }
-      ws.send(JSON.stringify({ action: 'discard', tile_id: tileId, riichi: riichiPending }));
-      riichiPending = false;
-      document.getElementById('btn-riichi').style.outline = 'none';
-    }
+    def flip_tile(self, p_num, tile_id):
+        hand = self.players[p_num]
+        for t in hand:
+            if t["id"] == tile_id:
+                t["top"], t["bottom"] = t["bottom"], t["top"]
+                return True
+        return False
 
-    function actionTsumo() {
-      ws.send(JSON.stringify({ action: 'tsumo' }));
-    }
+    def reorder_tiles(self, p_num, order_ids):
+        hand = self.players[p_num]
+        id_map = {t["id"]: t for t in hand}
+        new_hand = [id_map[tid] for tid in order_ids if tid in id_map]
+        if len(new_hand) == len(hand):
+            self.players[p_num] = new_hand
+            return True
+        return False
 
-    function actionRon(mode) {
-      ws.send(JSON.stringify({ action: 'ron', mode: mode }));
-    }
+    def draw_tile(self, p_num, discard_id=None):
+        if self.current_turn != p_num or self.turn_phase != "draw":
+            return False
 
-    function actionLobbyReady() {
-      ws.send(JSON.stringify({ action: 'ready' }));
-    }
+        if discard_id:
+            target = next((t for t in self.discards if t["id"] == discard_id), None)
+            if not target:
+                return False
+            self.discards.remove(target)
+            tile = target
+        else:
+            if not self.deck:
+                self.turn_phase = "round_end"
+                self.round_settlement.append({"player": 0, "text": "유국 (패산 소진으로 무승부)"})
+                self.check_round_end_incidentals(winner_num=None)
+                return True
+            tile = self.deck.pop()
 
-    function actionNextStep() {
-      if (currentPhase === 'game_over') {
-        ws.send(JSON.stringify({ action: 'reset_game' }));
-      } else {
-        ws.send(JSON.stringify({ action: 'ready_next' }));
-      }
-    }
+        self.players[p_num].append(tile)
+        self.last_drawn_id[p_num] = tile["id"]
+        self.turn_phase = "discard"
+        return True
 
-    function sendSettings() {
-      let scoreVal = parseInt(document.getElementById('inp-target').value, 10);
-      if (isNaN(scoreVal) || scoreVal <= 0) scoreVal = 1;
-      const timeVal = document.getElementById('sel-time').value;
-      ws.send(JSON.stringify({ action: 'set_settings', score: scoreVal, time: timeVal }));
-    }
-  </script>
-</body>
-</html>
+    def discard_tile(self, p_num, tile_id, declare_riichi=False):
+        if self.current_turn != p_num or self.turn_phase != "discard":
+            return False
+
+        if self.riichi[p_num] and tile_id != self.last_drawn_id[p_num]:
+            return False
+
+        hand = self.players[p_num]
+        target = next((t for t in hand if t["id"] == tile_id), None)
+        if not target:
+            return False
+
+        if declare_riichi and not self.riichi[p_num]:
+            temp_hand = [t for t in hand if t["id"] != tile_id]
+            if check_can_riichi(temp_hand):
+                self.riichi[p_num] = True
+
+        hand.remove(target)
+        self.discards.append(target)
+        self.last_discard = target
+
+        self.pass_turn()
+        return True
+
+    def pass_turn(self):
+        self.current_turn = 2 if self.current_turn == 1 else 1
+        self.turn_phase = "draw"
+        self.reset_timer()
+
+    def handle_timeout(self):
+        p = self.current_turn
+        if self.turn_phase == "draw":
+            self.pass_turn()
+        elif self.turn_phase == "discard":
+            tid_to_discard = self.last_drawn_id.get(p)
+            hand = self.players[p]
+            target = next((t for t in hand if t["id"] == tid_to_discard), None)
+            if not target and hand:
+                target = hand[-1]
+            if target:
+                hand.remove(target)
+                self.discards.append(target)
+                self.last_discard = target
+            self.pass_turn()
+
+    def declare_tsumo(self, p_num):
+        if self.current_turn != p_num or self.turn_phase != "discard":
+            return False
+        res = evaluate_hand(self.players[p_num], is_incidental=False)
+        if res:
+            base = res["base_score"]
+            stars = res["stars"]
+            riichi_pt = 1 if self.riichi[p_num] else 0
+            total = base + stars + riichi_pt
+            self.scores[p_num] += total
+            self.round_winner = p_num
+
+            detail = f"{res['name']}({base}점)"
+            if stars > 0:
+                detail += f" + 별보너스({stars}점)"
+            if riichi_pt > 0:
+                detail += " + 리치(1점)"
+
+            self.round_settlement = [{
+                "player": p_num,
+                "type": "쯔모",
+                "text": f"[{p_num}P 쯔모 완성] {detail} = 총 {total}점 획득"
+            }]
+            self.check_round_end_incidentals(winner_num=p_num)
+            self.end_round()
+            return True
+        return False
+
+    def declare_ron(self, p_num, mode="steal"):
+        if self.current_turn != p_num or self.turn_phase != "draw" or not self.last_discard:
+            return False
+
+        opp = 2 if p_num == 1 else 1
+        winning_tile = self.last_discard
+
+        res = evaluate_hand(self.players[p_num] + [winning_tile], is_incidental=False)
+        if not res:
+            return False
+
+        if winning_tile in self.discards:
+            self.discards.remove(winning_tile)
+        self.players[p_num].append(winning_tile)
+
+        base = res["base_score"]
+        stars = res["stars"]
+        riichi_pt = 1 if self.riichi[p_num] else 0
+        total = base + stars + riichi_pt
+
+        detail = f"{res['name']}({base}점)"
+        if stars > 0:
+            detail += f" + 별보너스({stars}점)"
+        if riichi_pt > 0:
+            detail += " + 리치(1점)"
+
+        if mode == "steal":
+            stolen = min(self.scores[opp], total)
+            self.scores[opp] -= stolen
+            self.scores[p_num] += stolen
+            desc = f"[{p_num}P 론(강탈)] {detail} = {opp}P에게서 {stolen}점 강탈 (기본 점수: {total}점)"
+        else:
+            self.scores[p_num] += total
+            desc = f"[{p_num}P 완성] {detail} = 공급처로부터 총 {total}점 획득"
+
+        self.round_winner = p_num
+        self.round_settlement = [{"player": p_num, "type": "론", "text": desc}]
+        self.end_round()
+        return True
+
+    def check_round_end_incidentals(self, winner_num):
+        for p in [1, 2]:
+            if p != winner_num and len(self.players[p]) == 5:
+                res = check_incidental_win(self.players[p], self.discards)
+                if res:
+                    wt = res["winning_tile"]
+                    self.players[p].append(wt)
+                    
+                    base = res["base_score"]
+                    stars = res["stars"]
+                    riichi_pt = 1 if self.riichi[p] else 0
+                    total = base + stars + riichi_pt
+                    self.scores[p] += total
+
+                    detail = f"{res['name']}({base}점)"
+                    if stars > 0:
+                        detail += f" + 별보너스({stars}점)"
+                    if riichi_pt > 0:
+                        detail += " + 리치(1점)"
+
+                    self.round_settlement.append({
+                        "player": p,
+                        "type": "겸사겸사",
+                        "text": f"[{p}P 겸사겸사 완성] {detail} = 총 {total}점 획득"
+                    })
+
+    def end_round(self):
+        if self.scores[1] >= self.target_score or self.scores[2] >= self.target_score:
+            self.turn_phase = "game_over"
+        else:
+            self.turn_phase = "round_end"
+            self.starter = 2 if self.starter == 1 else 1
+
+connections = {}
+game = SixFlamesGame()
+
+async def broadcast_state():
+    for p_num, ws in list(connections.items()):
+        opp_num = 2 if p_num == 1 else 1
+        my_hand = game.players.get(p_num, [])
+        opp_hand = game.players.get(opp_num, [])
+
+        current_yaku = evaluate_hand(my_hand, is_incidental=False) if len(my_hand) == 6 else None
+        
+        can_riichi = False
+        if p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num]:
+            for t in my_hand:
+                remain = [x for x in my_hand if x["id"] != t["id"]]
+                if check_can_riichi(remain):
+                    can_riichi = True
+                    break
+
+        can_ron = False
+        if p_num == game.current_turn and game.turn_phase == "draw" and game.last_discard:
+            if evaluate_hand(my_hand + [game.last_discard], is_incidental=False):
+                can_ron = True
+
+        can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
+        show_all = (game.turn_phase in ["round_end", "game_over"])
+
+        payload = {
+            "player_num": p_num,
+            "target_score": game.target_score,
+            "time_limit": game.time_limit,
+            "time_left": game.time_left,
+            "my_turn": game.current_turn == p_num,
+            "phase": game.turn_phase,
+            "deck_count": len(game.deck),
+            "my_hand": my_hand,
+            "opp_hand_count": len(opp_hand),
+            "opp_hand": opp_hand if show_all else None,
+            "discards": game.discards,
+            "scores": game.scores,
+            "riichi": game.riichi,
+            "winner": game.round_winner,
+            "settlements": game.round_settlement,
+            "can_ron": can_ron,
+            "can_tsumo": can_tsumo,
+            "can_riichi": can_riichi,
+            "current_yaku": current_yaku,
+            "last_drawn_id": game.last_drawn_id[p_num],
+            "ready": game.ready,
+            "show_all": show_all,
+            "game_started": game.game_started
+        }
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            pass
+
+async def timer_background_task():
+    while True:
+        try:
+            await asyncio.sleep(1)
+            if game.game_started and game.turn_phase in ["draw", "discard"] and game.time_limit > 0:
+                game.time_left -= 1
+                if game.time_left <= 0:
+                    game.handle_timeout()
+                await broadcast_state()
+        except Exception:
+            pass
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(timer_background_task())
+    yield
+    task.cancel()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/")
+def get_index():
+    return FileResponse("index.html")
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    if 1 not in connections:
+        p_num = 1
+    elif 2 not in connections:
+        p_num = 2
+    else:
+        await websocket.send_json({"type": "full", "msg": "이미 방이 가득 찼습니다."})
+        await websocket.close()
+        return
+
+    connections[p_num] = websocket
+
+    if len(connections) < 2:
+        await websocket.send_json({"type": "wait", "player_num": p_num})
+    else:
+        await broadcast_state()
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            act = data.get("action")
+            
+            if act == "set_settings":
+                if p_num == 1 and not game.game_started:
+                    game.target_score = int(data.get("score", 10))
+                    game.time_limit = int(data.get("time", 60))
+                    game.time_left = game.time_limit
+                    await broadcast_state()
+            elif act == "flip":
+                if game.flip_tile(p_num, data.get("tile_id")):
+                    await broadcast_state()
+            elif act == "reorder":
+                if game.reorder_tiles(p_num, data.get("order", [])):
+                    await broadcast_state()
+            elif act == "draw":
+                if game.draw_tile(p_num, discard_id=data.get("discard_id")):
+                    await broadcast_state()
+            elif act == "discard":
+                if game.discard_tile(p_num, data.get("tile_id"), data.get("riichi", False)):
+                    await broadcast_state()
+            elif act == "tsumo":
+                if game.declare_tsumo(p_num):
+                    await broadcast_state()
+            elif act == "ron":
+                if game.declare_ron(p_num, mode=data.get("mode", "steal")):
+                    await broadcast_state()
+            elif act == "ready":
+                game.ready[p_num] = True
+                if game.ready[1] and game.ready[2]:
+                    game.game_started = True
+                    game.reset_round()
+                await broadcast_state()
+            elif act == "ready_next":
+                game.ready[p_num] = True
+                if game.ready[1] and game.ready[2]:
+                    game.reset_round()
+                await broadcast_state()
+            elif act == "reset_game":
+                game.reset_to_lobby()
+                await broadcast_state()
+    except WebSocketDisconnect:
+        if p_num in connections:
+            del connections[p_num]
+        game.reset_to_lobby()
