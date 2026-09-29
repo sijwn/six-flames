@@ -36,17 +36,20 @@ def evaluate_hand(tiles, is_incidental=False):
             "total_score": best_base + best_stars
         }
 
-    # 2. 개화 (8점 + 별보너스) [하우스 룰]: 아래쪽 1/1, 2/2, 3/3, 4/4, 5/5, 6/6 더블 & 위쪽 1~6
-    if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]:
-        if 8 > best_base:
-            best_name = "개화"
-            best_base = 8
-            best_stars = star_count
+    # 2. 개화 (8점 + 별보너스) [하우스 룰]: 위쪽 1~6, 아래쪽 6~1 대칭 구성
+    # 타일 조합: (1,6) 2장, (2,5) 2장, (3,4) 2장 (플립 고려)[cite: 6]
+    if (sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]) or \
+       (sorted(tops) == [6, 5, 4, 3, 2, 1] and sorted(bottoms) == [6, 5, 4, 3, 2, 1]):
+        # 각 타일의 합이 모두 7인지 확인 (1+6, 2+5, 3+4, 4+3, 5+2, 6+1)[cite: 6]
+        if all(t["top"] + t["bottom"] == 7 for t in tiles):
+            if 8 > best_base:
+                best_name = "개화"
+                best_base = 8
+                best_stars = star_count
 
-    # 3. 연쇄 (6점, 보너스 무시) [하우스 룰]: (1,6), (2,6), (3,6), (4,6), (5,6)과 (6,1) 등의 특정 세트
-    pair_set = sorted([tuple(sorted((t["top"], t["bottom"]))) for t in tiles])
-    # 1-6이 2장, 2-6, 3-6, 4-6, 5-6이 각각 1장인 구성
-    if pair_set == [(1, 6), (1, 6), (2, 6), (3, 6), (4, 6), (5, 6)]:
+    # 3. 연쇄 (6점, 보너스 무시) [하우스 룰]: 1-2, 2-3, 3-4, 4-5, 5-6, 6-1 꼬리물기 체인[cite: 6]
+    chain_pairs = sorted([tuple(sorted((t["top"], t["bottom"]))) for t in tiles])
+    if chain_pairs == [(1, 2), (1, 6), (2, 3), (3, 4), (4, 5), (5, 6)]:
         if 6 > best_base:
             best_name = "연쇄"
             best_base = 6
