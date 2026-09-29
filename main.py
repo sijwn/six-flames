@@ -23,21 +23,33 @@ def evaluate_hand(tiles, is_incidental=False):
     best_base = -1
     best_stars = 0
 
-    # 1. 휘광 (5점)
+    # 1. 무쌍 (3점 + 별보너스 6개 = 총 9점): 1/1, 2/2, 3/3, 4/4, 5/5, 6/6 6종 세트
+    if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
+        best_name = "무쌍"
+        best_base = 3
+        best_stars = 6
+        return {
+            "name": best_name,
+            "base_score": best_base,
+            "stars": best_stars,
+            "total_score": best_base + best_stars
+        }
+
+    # 2. 휘광 (5점, 보너스 없음): 더블 6개
     if star_count == 6:
         if 5 > best_base:
             best_name = "휘광"
             best_base = 5
             best_stars = 0
 
-    # 2. 육화 (6점 + 별보너스)
+    # 3. 육화 (6점 + 별보너스): 아래쪽 동일 & 위쪽 1~6 순열
     if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
         if 6 > best_base:
             best_name = "육화"
             best_base = 6
             best_stars = star_count
 
-    # 3. 삼동 (5점 + 별보너스)
+    # 4. 삼동 (5점 + 별보너스): 페어 3벌
     for p in permutations(tiles):
         if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
             if 5 > best_base:
@@ -46,14 +58,14 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_stars = star_count
             break
 
-    # 4. 삼색 (3점, 보너스 없음) - 겸사겸사 완성 전용
+    # 5. 삼색 (3점, 보너스 없음) - 겸사겸사 완성 전용
     if is_incidental and len(all_nums) <= 3:
         if 3 > best_base:
             best_name = "삼색"
             best_base = 3
             best_stars = 0
 
-    # 5. 삼연 (3점 + 별보너스)
+    # 6. 삼연 (3점 + 별보너스): 아래 숫자 동일 & 위 연속 3개 세트 2벌
     for s1_idx in combinations(range(6), 3):
         s2_idx = [i for i in range(6) if i not in s1_idx]
         s1 = [tiles[i] for i in s1_idx]
@@ -74,7 +86,7 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_stars = star_count
             break
 
-    # 6. 일색 (1점 + 별보너스)
+    # 7. 일색 (1점 + 별보너스): 아래쪽 숫자가 모두 동일
     if len(set(bottoms)) == 1:
         if 1 > best_base:
             best_name = "일색"
@@ -152,6 +164,14 @@ class SixFlamesGame:
             self.players[1].append(self.deck.pop())
             self.players[2].append(self.deck.pop())
 
+    def reset_to_lobby(self):
+        """전체 게임 초기화 후 로비 복귀"""
+        self.scores = {1: 0, 2: 0}
+        self.game_started = False
+        self.starter = random.choice([1, 2])
+        self.reset_round()
+        self.turn_phase = "lobby"
+
     def reset_timer(self):
         self.time_left = self.time_limit
 
@@ -178,7 +198,8 @@ class SixFlamesGame:
 
         if discard_id:
             target = next((t for t in self.discards if t["id"] == discard_id), None)
-            if not target: return False
+            if not target:
+                return False
             self.discards.remove(target)
             tile = target
         else:
@@ -203,7 +224,8 @@ class SixFlamesGame:
 
         hand = self.players[p_num]
         target = next((t for t in hand if t["id"] == tile_id), None)
-        if not target: return False
+        if not target:
+            return False
 
         if declare_riichi and not self.riichi[p_num]:
             temp_hand = [t for t in hand if t["id"] != tile_id]
@@ -259,8 +281,10 @@ class SixFlamesGame:
             self.round_winner = p_num
 
             detail = f"{res['name']}({base}점)"
-            if stars > 0: detail += f" + 별보너스({stars}점)"
-            if riichi_pt > 0: detail += " + 리치(1점)"
+            if stars > 0:
+                detail += f" + 별보너스({stars}점)"
+            if riichi_pt > 0:
+                detail += " + 리치(1점)"
 
             self.round_settlement = [{
                 "player": p_num,
@@ -273,7 +297,8 @@ class SixFlamesGame:
         return False
 
     def declare_ron(self, p_num, mode="steal"):
-        if self.turn_phase != "ron_wait": return False
+        if self.turn_phase != "ron_wait":
+            return False
         opp = 2 if p_num == 1 else 1
         
         winning_tile = self.last_discard
@@ -289,8 +314,10 @@ class SixFlamesGame:
             total = base + stars + riichi_pt
 
             detail = f"{res['name']}({base}점)"
-            if stars > 0: detail += f" + 별보너스({stars}점)"
-            if riichi_pt > 0: detail += " + 리치(1점)"
+            if stars > 0:
+                detail += f" + 별보너스({stars}점)"
+            if riichi_pt > 0:
+                detail += " + 리치(1점)"
 
             if mode == "steal":
                 stolen = min(self.scores[opp], total)
@@ -328,8 +355,10 @@ class SixFlamesGame:
                     self.scores[p] += total
 
                     detail = f"{res['name']}({base}점)"
-                    if stars > 0: detail += f" + 별보너스({stars}점)"
-                    if riichi_pt > 0: detail += " + 리치(1점)"
+                    if stars > 0:
+                        detail += f" + 별보너스({stars}점)"
+                    if riichi_pt > 0:
+                        detail += " + 리치(1점)"
 
                     self.round_settlement.append({
                         "player": p,
@@ -483,9 +512,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 if game.ready[1] and game.ready[2]:
                     game.reset_round()
                 await broadcast_state()
+            elif act == "reset_game":
+                game.reset_to_lobby()
+                await broadcast_state()
     except WebSocketDisconnect:
         if p_num in connections:
             del connections[p_num]
-        game.game_started = False
-        game.scores = {1: 0, 2: 0}
-        game.reset_round()
+        game.reset_to_lobby()
