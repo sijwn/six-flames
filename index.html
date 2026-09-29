@@ -2,160 +2,330 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>여섯 불꽃</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>여섯 불꽃 온라인</title>
   <style>
-    body { font-family: -apple-system, sans-serif; background: #18181b; color: #f4f4f5; text-align: center; margin: 0; padding: 20px; }
-    .panel { background: #27272a; border-radius: 12px; max-width: 640px; margin: 0 auto; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    :root {
+      --c1: #e63946; /* 1: 빨강 */
+      --c2: #f77f00; /* 2: 주황 */
+      --c3: #ffb703; /* 3: 노랑 */
+      --c4: #2a9d8f; /* 4: 초록 */
+      --c5: #1d3557; /* 5: 파랑 */
+      --c6: #7209b7; /* 6: 보라 */
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121214; color: #f4f4f5; margin: 0; padding: 12px; }
+    .container { max-width: 760px; margin: 0 auto; background: #1e1e24; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
     
+    /* 점수판 */
+    .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #2b2b36; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+    .score-box { text-align: center; font-size: 15px; }
+    .score-val { font-size: 22px; font-weight: bold; color: #fca311; }
+    .riichi-badge { background: #e63946; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 6px; animation: pulse 1s infinite alternate; }
+    @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; } }
+
+    /* 타일 디자인 */
+    .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
     .tile {
       display: inline-flex;
       flex-direction: column;
       justify-content: space-between;
-      width: 46px;
-      height: 78px;
+      width: 44px;
+      height: 76px;
       background: #fafafa;
-      color: #18181b;
       border-radius: 6px;
-      margin: 6px;
       cursor: pointer;
       user-select: none;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-      border: 1px solid #d4d4d8;
-      box-sizing: border-box;
-      transition: transform 0.1s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      border: 2px solid transparent;
+      transition: transform 0.1s, border-color 0.1s;
     }
-    .tile:hover { transform: translateY(-3px); }
-    .tile-half {
-      font-weight: 800;
-      font-size: 19px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .tile-divider {
-      height: 1px;
-      background: #a1a1aa;
-      position: relative;
-    }
-    .star-mark {
-      position: absolute;
-      top: -8px;
-      left: calc(50% - 7px);
-      font-size: 11px;
-      color: #ef4444;
-      background: #fafafa;
-      border-radius: 50%;
-      line-height: 14px;
-      width: 14px;
-      text-align: center;
-    }
-    
-    .tile-back {
-      background: #3f3f46;
-      border: 2px dashed #71717a;
-      width: 40px;
-      height: 68px;
-      cursor: default;
-    }
+    .tile:hover:not(.locked) { transform: translateY(-4px); }
+    .tile.locked { opacity: 0.55; cursor: not-allowed; }
+    .tile.drawn-highlight { border: 2px solid #38bdf8; }
+    .tile.last-discard { border: 2px solid #facc15; box-shadow: 0 0 10px #facc15; }
+
+    .tile-half { font-weight: 900; font-size: 19px; height: 33px; display: flex; align-items: center; justify-content: center; }
+    .tile-divider { height: 1px; background: #bbb; position: relative; }
+    .star-mark { position: absolute; top: -7px; left: calc(50% - 6px); font-size: 10px; color: #e63946; background: #fafafa; border-radius: 50%; line-height: 12px; width: 12px; text-align: center; }
+
+    /* 숫자별 꽃잎 테마 색상 */
+    .num-1 { color: var(--c1); }
+    .num-2 { color: var(--c2); }
+    .num-3 { color: var(--c3); }
+    .num-4 { color: var(--c4); }
+    .num-5 { color: var(--c5); }
+    .num-6 { color: var(--c6); }
+
+    .tile-back { background: #3f3f46; border: 2px dashed #71717a; width: 38px; height: 66px; cursor: default; }
     .tile-back:hover { transform: none; }
 
-    button { background: #ef4444; color: white; border: none; padding: 10px 18px; font-size: 15px; font-weight: bold; border-radius: 6px; cursor: pointer; }
-    button:disabled { background: #52525b; cursor: not-allowed; }
-    .section-title { font-size: 13px; color: #a1a1aa; margin: 15px 0 5px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+    /* 액션 버튼 및 패널 */
+    .action-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 0; }
+    button { background: #3b82f6; color: white; border: none; padding: 10px 16px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+    button:disabled { background: #4b5563; cursor: not-allowed; opacity: 0.6; }
+    button.btn-win { background: #10b981; }
+    button.btn-ron { background: #f59e0b; font-size: 16px; }
+    button.btn-riichi { background: #ef4444; }
+
+    .yaku-badge { background: #10b981; color: white; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; display: inline-block; margin-bottom: 8px; }
+    .status-bar { text-align: center; font-size: 15px; font-weight: bold; margin: 10px 0; min-height: 22px; }
+    .discards-box { background: #18181b; border-radius: 8px; padding: 8px; min-height: 80px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .sec-label { font-size: 12px; color: #a1a1aa; text-transform: uppercase; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <div class="panel">
-    <h2 style="margin-top:0;">🔥 여섯 불꽃 온라인</h2>
-    <div id="status" style="font-weight: bold; margin-bottom: 15px;">접속 대기 중...</div>
-
-    <div class="section-title">상대방 패</div>
-    <div id="opp-hand" style="min-height: 70px;"></div>
-
-    <div class="section-title">공용 덱 및 버린 패</div>
-    <div style="margin: 12px 0;">
-      <span>남은 덱: <strong id="deck-count" style="color:#f87171;">0</strong> / 42</span>
-      <button id="draw-btn" onclick="drawTile()" style="margin-left: 12px;" disabled>패 1장 뽑기</button>
+  <div class="container">
+    <!-- 상단 점수 및 상태 정보 -->
+    <div class="scoreboard">
+      <div class="score-box">
+        <div>1P (나/상대)</div>
+        <div class="score-val" id="p1-score">0점</div>
+        <div id="p1-riichi-tag"></div>
+      </div>
+      <div style="text-align: center;">
+        <span style="font-size: 13px; color:#aaa;">목표 점수: <strong id="target-score-txt">10</strong>점</span>
+        <div id="target-ctrl" style="display:none; margin-top: 4px;">
+          <input type="number" id="target-input" value="10" min="5" max="30" style="width: 50px; text-align:center;">
+          <button onclick="setTarget()" style="padding: 4px 8px; font-size: 12px;">설정</button>
+        </div>
+      </div>
+      <div class="score-box">
+        <div>2P (상대/나)</div>
+        <div class="score-val" id="p2-score">0점</div>
+        <div id="p2-riichi-tag"></div>
+      </div>
     </div>
-    <div id="discards" style="min-height: 80px;"></div>
 
-    <hr style="border: 0.5px solid #3f3f46; margin: 20px 0;">
+    <!-- 진행 상황 텍스트 -->
+    <div class="status-bar" id="status-bar">접속 대기 중...</div>
 
-    <div class="section-title">내 손패 (버릴 패를 클릭하세요)</div>
-    <div id="my-hand" style="min-height: 85px;"></div>
+    <!-- 상대방 패 -->
+    <div class="sec-label">상대방 패 <span id="opp-status"></span></div>
+    <div class="hand-container" id="opp-hand"></div>
+
+    <!-- 중앙 바닥 (덱 & 버린 패) -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin: 6px 0;">
+      <span class="sec-label">버려진 패 (바닥)</span>
+      <span style="font-size: 13px;">남은 덱: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
+    </div>
+    <div class="discards-box" id="discards"></div>
+
+    <!-- 액션 컨트롤 버튼들 -->
+    <div class="action-panel" id="action-panel">
+      <button id="btn-draw" onclick="actionDraw(false)" disabled>패산에서 1장 뽑기</button>
+      <button id="btn-draw-discard" onclick="actionDraw(true)" disabled>바닥 패 가져오기</button>
+      <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
+      <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
+    </div>
+
+    <!-- 론 발생 시 모달 형태의 버튼 -->
+    <div id="ron-modal" style="display:none; text-align:center; margin: 10px 0; background: #27272a; padding: 10px; border-radius: 8px;">
+      <span style="color:#facc15; font-weight:bold; margin-right: 10px;">상대 버림패로 론 가능!</span>
+      <button class="btn-ron" onclick="actionRon()">론 선언 (점수 강탈)</button>
+      <button onclick="actionSkipRon()" style="background:#6b7280; margin-left: 8px;">패스</button>
+    </div>
+
+    <hr style="border: 0.5px solid #333; margin: 15px 0;">
+
+    <!-- 내 역 알림 뱃지 -->
+    <div style="text-align: center;">
+      <div id="yaku-badge" class="yaku-badge" style="display:none;"></div>
+    </div>
+
+    <!-- 내 손패 -->
+    <div class="sec-label">내 손패 (버릴 패를 클릭하세요)</div>
+    <div class="hand-container" id="my-hand"></div>
+
+    <!-- 라운드 종료 / 레디 컨트롤 -->
+    <div id="ready-panel" style="display:none; text-align:center; margin-top: 15px;">
+      <div id="win-desc" style="font-size: 16px; font-weight: bold; color: #4ade80; margin-bottom: 10px;"></div>
+      <button id="btn-ready" onclick="actionReady()" style="background:#10b981; font-size: 16px; padding: 12px 24px;">다음 판 준비</button>
+      <div id="ready-status" style="font-size: 12px; color: #aaa; margin-top: 6px;"></div>
+    </div>
   </div>
 
   <script>
     const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-    let myTurn = false;
-    let turnPhase = '';
+    let myPlayer = null;
+    let isMyTurn = false;
+    let currentPhase = '';
+    let riichiPending = false;
+    let myRiichiActive = false;
+    let lastDrawnId = null;
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'wait') {
-        document.getElementById('status').innerText = data.msg;
+        myPlayer = data.player_num;
+        document.getElementById('status-bar').innerText = '상대방의 접속을 기다리고 있습니다...';
+        if (myPlayer === 1) document.getElementById('target-ctrl').style.display = 'block';
+        return;
+      }
+      if (data.type === 'full') {
+        alert(data.msg);
         return;
       }
 
-      myTurn = data.my_turn;
-      turnPhase = data.phase;
+      myPlayer = data.player_num;
+      isMyTurn = data.my_turn;
+      currentPhase = data.phase;
+      myRiichiActive = data.riichi[myPlayer];
+      lastDrawnId = data.last_drawn_id;
 
-      if (myTurn) {
-        document.getElementById('status').innerHTML = `<span style="color:#4ade80;">내 턴입니다! (${turnPhase === 'draw' ? '덱에서 패를 1장 뽑으세요' : '버릴 패를 클릭하세요'})</span>`;
+      // 점수판 갱신
+      document.getElementById('p1-score').innerText = `${data.scores[1]}점`;
+      document.getElementById('p2-score').innerText = `${data.scores[2]}점`;
+      document.getElementById('target-score-txt').innerText = data.target_score;
+
+      document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
+      document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
+
+      // 상태바 갱신
+      const oppPlayer = myPlayer === 1 ? 2 : 1;
+      if (data.show_all) {
+        document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 게임 종료!' : '라운드 종료 (양측 패 공개)';
+      } else if (isMyTurn) {
+        document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례입니다! (${currentPhase === 'draw' ? '패를 1장 가져오세요' : '버릴 패를 선택하세요'})</span>`;
       } else {
-        document.getElementById('status').innerHTML = `<span style="color:#a1a1aa;">상대방 턴 진행 중...</span>`;
+        document.getElementById('status-bar').innerHTML = `<span style="color:#a1a1aa;">상대방 차례 진행 중...</span>`;
       }
 
-      document.getElementById('draw-btn').disabled = !(myTurn && turnPhase === 'draw');
+      // 뽑기 버튼 활성화 제어
       document.getElementById('deck-count').innerText = data.deck_count;
+      document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
+      document.getElementById('btn-draw-discard').disabled = !(isMyTurn && currentPhase === 'draw' && data.discards.length > 0);
 
-      const oppHandDiv = document.getElementById('opp-hand');
-      oppHandDiv.innerHTML = '';
-      for (let i = 0; i < data.opp_hand_count; i++) {
-        oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
+      // 리치 버튼 제어
+      const btnRiichi = document.getElementById('btn-riichi');
+      btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard' && data.can_riichi);
+      if (myRiichiActive) {
+        btnRiichi.style.display = 'none';
       }
 
+      // 쯔모(완성) 버튼 제어
+      document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
+
+      // 론 모달 제어
+      document.getElementById('ron-modal').style.display = data.can_ron ? 'block' : 'none';
+
+      // 내 완성 역 뱃지 안내
+      const yakuBadge = document.getElementById('yaku-badge');
+      if (data.current_yaku) {
+        yakuBadge.style.display = 'inline-block';
+        yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.score}점, ★ ${data.current_yaku.stars}개)`;
+      } else {
+        yakuBadge.style.display = 'none';
+      }
+
+      // 바닥 버림패 렌더링
       const discardsDiv = document.getElementById('discards');
       discardsDiv.innerHTML = '';
-      data.discards.forEach(t => {
-        discardsDiv.appendChild(createTileElement(t, false));
+      data.discards.forEach((t, idx) => {
+        const isLast = (idx === data.discards.length - 1);
+        discardsDiv.appendChild(createTileEl(t, false, false, isLast));
       });
 
+      // 상대방 패 렌더링 (라운드 종료 시 앞면 공개)
+      const oppHandDiv = document.getElementById('opp-hand');
+      oppHandDiv.innerHTML = '';
+      if (data.show_all && data.opp_hand) {
+        data.opp_hand.forEach(t => oppHandDiv.appendChild(createTileEl(t, false, false, false)));
+      } else {
+        for (let i = 0; i < data.opp_hand_count; i++) {
+          oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
+        }
+      }
+
+      // 내 손패 렌더링
       const myHandDiv = document.getElementById('my-hand');
       myHandDiv.innerHTML = '';
       data.my_hand.forEach(t => {
-        myHandDiv.appendChild(createTileElement(t, true));
+        const isLocked = myRiichiActive && (t.id !== lastDrawnId);
+        const isDrawn = (t.id === lastDrawnId);
+        const el = createTileEl(t, true, isLocked, false, isDrawn);
+        myHandDiv.appendChild(el);
       });
+
+      // 라운드 종료 / 레디 뷰
+      const readyPanel = document.getElementById('ready-panel');
+      if (data.show_all) {
+        readyPanel.style.display = 'block';
+        document.getElementById('win-desc').innerText = data.win_reason;
+        const myReady = data.ready[myPlayer];
+        const oppReady = data.ready[oppPlayer];
+        document.getElementById('btn-ready').disabled = myReady;
+        document.getElementById('btn-ready').innerText = myReady ? '준비 완료 (상대 대기 중)' : '다음 판 준비';
+        document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+      } else {
+        readyPanel.style.display = 'none';
+      }
     };
 
-    function createTileElement(tile, isClickable) {
+    function createTileEl(t, isClickable, isLocked, isLastDiscard, isDrawn) {
       const el = document.createElement('div');
       el.className = 'tile';
-      
-      const starHtml = tile.is_double ? '<span class="star-mark">★</span>' : '';
+      if (isLocked) el.classList.add('locked');
+      if (isLastDiscard) el.classList.add('last-discard');
+      if (isDrawn) el.classList.add('drawn-highlight');
+
+      const starHtml = t.is_double ? '<span class="star-mark">★</span>' : '';
       el.innerHTML = `
-        <div class="tile-half">${tile.top}</div>
+        <div class="tile-half num-${t.top}">${t.top}</div>
         <div class="tile-divider">${starHtml}</div>
-        <div class="tile-half">${tile.bottom}</div>
+        <div class="tile-half num-${t.bottom}">${t.bottom}</div>
       `;
 
-      if (isClickable) {
-        el.onclick = () => discardTile(tile.id);
+      if (isClickable && !isLocked) {
+        el.onclick = () => discardTile(t.id);
       }
       return el;
     }
 
-    function drawTile() {
-      ws.send(JSON.stringify({ action: 'draw' }));
+    function actionDraw(fromDiscard) {
+      ws.send(JSON.stringify({ action: 'draw', from_discard: fromDiscard }));
     }
 
-    function discardTile(id) {
-      if (!myTurn || turnPhase !== 'discard') {
-        alert('지금은 패를 버릴 수 있는 타이밍이 아닙니다.');
+    function toggleRiichiMode() {
+      riichiPending = !riichiPending;
+      const btn = document.getElementById('btn-riichi');
+      if (riichiPending) {
+        btn.style.outline = '3px solid #facc15';
+        alert('리치 상태로 버릴 패를 클릭하세요!');
+      } else {
+        btn.style.outline = 'none';
+      }
+    }
+
+    function discardTile(tileId) {
+      if (!isMyTurn || currentPhase !== 'discard') {
+        alert('지금은 패를 버릴 수 없습니다.');
         return;
       }
-      ws.send(JSON.stringify({ action: 'discard', tile_id: id }));
+      ws.send(JSON.stringify({ action: 'discard', tile_id: tileId, riichi: riichiPending }));
+      riichiPending = false;
+      document.getElementById('btn-riichi').style.outline = 'none';
+    }
+
+    function actionTsumo() {
+      ws.send(JSON.stringify({ action: 'tsumo' }));
+    }
+
+    function actionRon() {
+      ws.send(JSON.stringify({ action: 'ron' }));
+    }
+
+    function actionSkipRon() {
+      ws.send(JSON.stringify({ action: 'skip_ron' }));
+    }
+
+    function actionReady() {
+      ws.send(JSON.stringify({ action: 'ready_next' }));
+    }
+
+    function setTarget() {
+      const val = document.getElementById('target-input').value;
+      ws.send(JSON.stringify({ action: 'set_target', score: val }));
     }
   </script>
 </body>
