@@ -131,17 +131,18 @@
       </div>
       <div class="discards-box" id="discards"></div>
 
+      <!-- 액션 패널 -->
       <div class="action-panel">
         <button id="btn-draw" onclick="actionDraw(null)" disabled>패 뽑기</button>
         <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
         <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
       </div>
 
+      <!-- 내 턴 시작 시 론 가능할 때 표시되는 액션 패널 -->
       <div id="ron-modal" style="display:none; text-align:center; margin: 10px 0; background: #334155; padding: 12px; border-radius: 8px;">
-        <div style="color:#facc15; font-weight:bold; margin-bottom: 8px;">상대 버림패로 완성 가능!</div>
+        <div style="color:#facc15; font-weight:bold; margin-bottom: 8px;">상대 버림패로 바로 완성 가능!</div>
         <button class="btn-ron" onclick="actionRon('steal')">론 선언 (상대 점수 강탈)</button>
         <button class="btn-win" onclick="actionRon('direct')" style="margin-left:6px;">완성 선언 (점수 획득)</button>
-        <button onclick="actionSkipRon()" style="background:#64748b; margin-left:6px;">패스</button>
       </div>
 
       <hr style="border: 0.5px solid #334155; margin: 14px 0;">
@@ -245,7 +246,11 @@
         document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
       } else if (isMyTurn) {
         if (currentPhase === 'draw') {
-          document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
+          if (data.can_ron) {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">내 차례: [론 선언]이 가능합니다! 또는 [패 뽑기]를 진행하세요</span>`;
+          } else {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
+          }
         } else {
           document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
         }
@@ -301,12 +306,10 @@
         }
       }
 
-      // 내 손패 렌더링
       const myHandDiv = document.getElementById('my-hand');
       myHandDiv.innerHTML = '';
       currentHand.forEach((t, idx) => {
         const isDrawn = (t.id === lastDrawnId);
-        // 리치 상태일 때 패가 6장이면 뽑은 패 제외하고 잠금
         const isLocked = myRiichiActive && (currentHand.length === 6) && (t.id !== lastDrawnId);
         
         const wrap = document.createElement('div');
@@ -348,7 +351,6 @@
         myHandDiv.appendChild(wrap);
       });
 
-      // 점수 상세 내역 렌더링 및 종료 버튼 제어
       const readyPanel = document.getElementById('ready-panel');
       if (data.show_all) {
         readyPanel.style.display = 'block';
@@ -461,10 +463,6 @@
 
     function actionRon(mode) {
       ws.send(JSON.stringify({ action: 'ron', mode: mode }));
-    }
-
-    function actionSkipRon() {
-      ws.send(JSON.stringify({ action: 'skip_ron' }));
     }
 
     function actionLobbyReady() {
