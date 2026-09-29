@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>여섯 불꽃</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #18181b; color: #f4f4f5; text-align: center; margin: 0; padding: 20px; }
+    .panel { background: #27272a; border-radius: 12px; max-width: 640px; margin: 0 auto; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    
+    .tile {
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: space-between;
+      width: 46px;
+      height: 78px;
+      background: #fafafa;
+      color: #18181b;
+      border-radius: 6px;
+      margin: 6px;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      border: 1px solid #d4d4d8;
+      box-sizing: border-box;
+      transition: transform 0.1s ease;
+    }
+    .tile:hover { transform: translateY(-3px); }
+    .tile-half {
+      font-weight: 800;
+      font-size: 19px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tile-divider {
+      height: 1px;
+      background: #a1a1aa;
+      position: relative;
+    }
+    .star-mark {
+      position: absolute;
+      top: -8px;
+      left: calc(50% - 7px);
+      font-size: 11px;
+      color: #ef4444;
+      background: #fafafa;
+      border-radius: 50%;
+      line-height: 14px;
+      width: 14px;
+      text-align: center;
+    }
+    
+    .tile-back {
+      background: #3f3f46;
+      border: 2px dashed #71717a;
+      width: 40px;
+      height: 68px;
+      cursor: default;
+    }
+    .tile-back:hover { transform: none; }
+
+    button { background: #ef4444; color: white; border: none; padding: 10px 18px; font-size: 15px; font-weight: bold; border-radius: 6px; cursor: pointer; }
+    button:disabled { background: #52525b; cursor: not-allowed; }
+    .section-title { font-size: 13px; color: #a1a1aa; margin: 15px 0 5px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h2 style="margin-top:0;">🔥 여섯 불꽃 온라인</h2>
+    <div id="status" style="font-weight: bold; margin-bottom: 15px;">접속 대기 중...</div>
+
+    <div class="section-title">상대방 패</div>
+    <div id="opp-hand" style="min-height: 70px;"></div>
+
+    <div class="section-title">공용 덱 및 버린 패</div>
+    <div style="margin: 12px 0;">
+      <span>남은 덱: <strong id="deck-count" style="color:#f87171;">0</strong> / 42</span>
+      <button id="draw-btn" onclick="drawTile()" style="margin-left: 12px;" disabled>패 1장 뽑기</button>
+    </div>
+    <div id="discards" style="min-height: 80px;"></div>
+
+    <hr style="border: 0.5px solid #3f3f46; margin: 20px 0;">
+
+    <div class="section-title">내 손패 (버릴 패를 클릭하세요)</div>
+    <div id="my-hand" style="min-height: 85px;"></div>
+  </div>
+
+  <script>
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    let myTurn = false;
+    let turnPhase = '';
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'wait') {
+        document.getElementById('status').innerText = data.msg;
+        return;
+      }
+
+      myTurn = data.my_turn;
+      turnPhase = data.phase;
+
+      if (myTurn) {
+        document.getElementById('status').innerHTML = `<span style="color:#4ade80;">내 턴입니다! (${turnPhase === 'draw' ? '덱에서 패를 1장 뽑으세요' : '버릴 패를 클릭하세요'})</span>`;
+      } else {
+        document.getElementById('status').innerHTML = `<span style="color:#a1a1aa;">상대방 턴 진행 중...</span>`;
+      }
+
+      document.getElementById('draw-btn').disabled = !(myTurn && turnPhase === 'draw');
+      document.getElementById('deck-count').innerText = data.deck_count;
+
+      const oppHandDiv = document.getElementById('opp-hand');
+      oppHandDiv.innerHTML = '';
+      for (let i = 0; i < data.opp_hand_count; i++) {
+        oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
+      }
+
+      const discardsDiv = document.getElementById('discards');
+      discardsDiv.innerHTML = '';
+      data.discards.forEach(t => {
+        discardsDiv.appendChild(createTileElement(t, false));
+      });
+
+      const myHandDiv = document.getElementById('my-hand');
+      myHandDiv.innerHTML = '';
+      data.my_hand.forEach(t => {
+        myHandDiv.appendChild(createTileElement(t, true));
+      });
+    };
+
+    function createTileElement(tile, isClickable) {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      
+      const starHtml = tile.is_double ? '<span class="star-mark">★</span>' : '';
+      el.innerHTML = `
+        <div class="tile-half">${tile.top}</div>
+        <div class="tile-divider">${starHtml}</div>
+        <div class="tile-half">${tile.bottom}</div>
+      `;
+
+      if (isClickable) {
+        el.onclick = () => discardTile(tile.id);
+      }
+      return el;
+    }
+
+    function drawTile() {
+      ws.send(JSON.stringify({ action: 'draw' }));
+    }
+
+    function discardTile(id) {
+      if (!myTurn || turnPhase !== 'discard') {
+        alert('지금은 패를 버릴 수 있는 타이밍이 아닙니다.');
+        return;
+      }
+      ws.send(JSON.stringify({ action: 'discard', tile_id: id }));
+    }
+  </script>
+</body>
+</html>
