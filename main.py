@@ -2,6 +2,7 @@ import random
 import asyncio
 from contextlib import asynccontextmanager
 from itertools import combinations, permutations
+from collections import Counter
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
@@ -10,6 +11,7 @@ def is_same_tile(t1, t2):
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
 def evaluate_hand(tiles, is_incidental=False):
+    """6개 타일 기준 역 판정 (불휘 제외 하우스 룰 역 모두 포함)"""
     if len(tiles) != 6:
         return None
 
@@ -22,6 +24,7 @@ def evaluate_hand(tiles, is_incidental=False):
     best_base = -1
     best_stars = 0
 
+    # 1. 무쌍 (3점 + 별보너스 6개 = 총 9점): 1/1, 2/2, 3/3, 4/4, 5/5, 6/6
     if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
         best_name = "무쌍"
         best_base = 3
@@ -33,18 +36,37 @@ def evaluate_hand(tiles, is_incidental=False):
             "total_score": best_base + best_stars
         }
 
-    if star_count == 6:
-        if 5 > best_base:
-            best_name = "휘광"
-            best_base = 5
+    # 2. 개화 (8점 + 별보너스) [하우스 룰]: 아래쪽 1/1, 2/2, 3/3, 4/4, 5/5, 6/6 더블 & 위쪽 1~6
+    if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]:
+        if 8 > best_base:
+            best_name = "개화"
+            best_base = 8
+            best_stars = star_count
+
+    # 3. 연쇄 (6점, 보너스 무시) [하우스 룰]: (1,6), (2,6), (3,6), (4,6), (5,6)과 (6,1) 등의 특정 세트
+    pair_set = sorted([tuple(sorted((t["top"], t["bottom"]))) for t in tiles])
+    # 1-6이 2장, 2-6, 3-6, 4-6, 5-6이 각각 1장인 구성
+    if pair_set == [(1, 6), (1, 6), (2, 6), (3, 6), (4, 6), (5, 6)]:
+        if 6 > best_base:
+            best_name = "연쇄"
+            best_base = 6
             best_stars = 0
 
+    # 4. 육화 (6점 + 별보너스): 아래쪽 동일 & 위쪽 1~6 순열
     if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
         if 6 > best_base:
             best_name = "육화"
             best_base = 6
             best_stars = star_count
 
+    # 5. 휘광 (5점, 보너스 무시): 더블 6개
+    if star_count == 6:
+        if 5 > best_base:
+            best_name = "휘광"
+            best_base = 5
+            best_stars = 0
+
+    # 6. 삼동 (5점 + 별보너스): 페어 3벌
     for p in permutations(tiles):
         if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
             if 5 > best_base:
@@ -53,12 +75,14 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_stars = star_count
             break
 
+    # 7. 삼색 (3점, 보너스 무시) - 겸사겸사 완성 전용
     if is_incidental and len(all_nums) <= 3:
         if 3 > best_base:
             best_name = "삼색"
             best_base = 3
             best_stars = 0
 
+    # 8. 삼연 (3점 + 별보너스): 아래 숫자 동일 & 위 연속 3개 세트 2벌
     for s1_idx in combinations(range(6), 3):
         s2_idx = [i for i in range(6) if i not in s1_idx]
         s1 = [tiles[i] for i in s1_idx]
@@ -79,6 +103,22 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_stars = star_count
             break
 
+    # 9. 동형 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 1개, 2개, 3개 (예: A, BB, CCC)
+    top_counts = sorted(Counter(tops).values())
+    if top_counts == [1, 2, 3]:
+        if 1 > best_base:
+            best_name = "동형"
+            best_base = 1
+            best_stars = star_count
+
+    # 10. 삼군 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 2개씩 3쌍 (AABBCC)
+    if top_counts == [2, 2, 2]:
+        if 1 > best_base:
+            best_name = "삼군"
+            best_base = 1
+            best_stars = star_count
+
+    # 11. 일색 (1점 + 별보너스): 아래쪽 숫자가 모두 동일
     if len(set(bottoms)) == 1:
         if 1 > best_base:
             best_name = "일색"
@@ -458,7 +498,7 @@ async def websocket_endpoint(websocket: WebSocket):
             act = data.get("action")
             
             if act == "set_settings":
-                if p_num == 1 and not game.game_started:
+                if not game.game_started:
                     game.target_score = int(data.get("score", 10))
                     game.time_limit = int(data.get("time", 60))
                     game.time_left = game.time_limit
