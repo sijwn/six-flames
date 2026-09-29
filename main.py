@@ -2,7 +2,6 @@ import random
 import asyncio
 from contextlib import asynccontextmanager
 from itertools import combinations, permutations
-from collections import Counter
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
@@ -11,7 +10,7 @@ def is_same_tile(t1, t2):
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
 def evaluate_hand(tiles, is_incidental=False):
-    """6개 타일 기준 역 판정 (불휘 제외 하우스 룰 역 모두 포함)"""
+    """6개 타일 기준 역 판정 (불휘, 삼군 제외)"""
     if len(tiles) != 6:
         return None
 
@@ -110,15 +109,7 @@ def evaluate_hand(tiles, is_incidental=False):
             best_base = 1
             best_stars = star_count
 
-    # 10. 삼군 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 2개씩 3쌍 (AABBCC)
-    top_counts = sorted(Counter(tops).values())
-    if top_counts == [2, 2, 2]:
-        if 1 > best_base:
-            best_name = "삼군"
-            best_base = 1
-            best_stars = star_count
-
-    # 11. 일색 (1점 + 별보너스): 아래쪽 숫자가 모두 동일
+    # 10. 일색 (1점 + 별보너스): 아래쪽 숫자가 모두 동일
     if len(set(bottoms)) == 1:
         if 1 > best_base:
             best_name = "일색"
@@ -249,7 +240,6 @@ class SixFlamesGame:
         if not target:
             return False
 
-        # 리치 선언 버튼을 누르고 패를 버리면 무조건 리치 적용
         if declare_riichi and not self.riichi[p_num]:
             self.riichi[p_num] = True
 
@@ -393,7 +383,6 @@ async def broadcast_state():
 
         current_yaku = evaluate_hand(my_hand, is_incidental=False) if len(my_hand) == 6 else None
         
-        # 텐파이 검증 없이 내 차례의 버리기 단계이고 리치 전이면 항상 True
         can_riichi = (p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
 
         can_ron = False
