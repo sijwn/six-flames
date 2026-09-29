@@ -11,7 +11,6 @@ def is_same_tile(t1, t2):
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
 def evaluate_fixed_hand(tiles, is_incidental=False):
-    """현재 위/아래 방향 그대로 판정하는 단일 검사 함수"""
     if len(tiles) != 6:
         return None
 
@@ -99,12 +98,10 @@ def evaluate_fixed_hand(tiles, is_incidental=False):
     return None
 
 def evaluate_hand(tiles, is_incidental=False):
-    """위/아래가 뒤집혀 있어도 자동으로 최적의 역을 탐색하여 판정"""
     if len(tiles) != 6:
         return None
 
     best = None
-    # 6개 타일 각각의 플립 조합(총 64가지) 중 가장 높은 역을 자동 탐색
     for mask in range(64):
         variant = []
         for i in range(6):
@@ -140,7 +137,8 @@ class GameSession:
         self.starter = 1
         self.ready = {1: False, 2: False}
         self.game_started = False
-        self.status_notice = None # AI 행동 알림용
+        self.status_notice = None
+        self.ai_thinking = False
         self.reset_round()
 
     def reset_round(self):
@@ -166,6 +164,7 @@ class GameSession:
         self.last_discard = None
         self.ready = {1: False, 2: False}
         self.status_notice = None
+        self.ai_thinking = False
         self.time_left = self.time_limit
 
         for _ in range(5):
@@ -400,38 +399,40 @@ class GameSession:
         best_pot += pairs * 10
         return best_pot
 
-    async def run_ai_turn(self):
-        # AI 생각 시간 (1.2초)
-        self.status_notice = "🤖 AI가 수를 고민하고 있습니다..."
-        await asyncio.sleep(1.2)
-        if not self.game_started or self.current_turn != 2:
+    async def execute_ai_step(self, ws: WebSocket):
+        """AI 턴 진행: 즉시 패를 가져오고 -> 패를 쥐고 1.5초 고민 후 -> 패를 버림"""
+        if self.ai_thinking or not self.game_started or self.current_turn != 2:
             return
 
-        opp_riichi = self.riichi[1]
+        self.ai_thinking = True
+        try:
+            opp_riichi = self.riichi[1]
 
-        # 1. DRAW 단계
-        if self.turn_phase == "draw":
+            # 1. 패 가져오기 (0.3초 후 바로 가져와서 6장 상태로 만듦)
+            await asyncio.sleep(0.3)
+            if not self.game_started or self.current_turn != 2 or self.turn_phase != "draw":
+                return
+
             # 론 검사
-            if self.last_discard:
-                if evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False):
-                    self.declare_ron(2, mode="steal")
-                    self.status_notice = None
-                    return
+            if self.last_discard and evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False):
+                self.declare_ron(2, mode="steal")
+                self.status_notice = None
+                await send_state_to_ws(ws, self, 1)
+                return
 
             picked_from_floor = False
-            picked_tile_info = None
+            picked_info = None
 
             if self.discards:
                 current_pot = self.evaluate_hand_potential(self.players[2], opponent_riichi=opp_riichi)
                 candidates = []
-
                 search_depth = 3 if self.ai_diff == "low" else (6 if self.ai_diff == "mid" else len(self.discards))
+
                 for disc in reversed(self.discards[-search_depth:]):
                     test_hand_6 = self.players[2] + [disc]
                     if evaluate_hand(test_hand_6, is_incidental=False):
                         candidates.append((999, disc))
                         break
-
                     pot_diff = self.evaluate_hand_potential(test_hand_6, opponent_riichi=opp_riichi) - current_pot
                     if pot_diff >= (8 if self.ai_diff == "high" else 12):
                         candidates.append((pot_diff, disc))
@@ -440,42 +441,45 @@ class GameSession:
                     if self.ai_diff != "low" or random.random() < 0.4:
                         candidates.sort(key=lambda x: x[0], reverse=True)
                         target_tile = candidates[0][1]
-                        picked_tile_info = f"[{target_tile['top']}/{target_tile['bottom']}]"
+                        picked_info = f"[{target_tile['top']}/{target_tile['bottom']}]"
                         self.draw_tile(2, discard_id=target_tile["id"])
                         picked_from_floor = True
 
             if not picked_from_floor:
                 self.draw_tile(2, discard_id=None)
-                self.status_notice = "🤖 AI가 덱에서 패를 1장 뽑았습니다."
+                self.status_notice = "🤖 AI가 덱에서 패를 가져왔습니다. 버릴 패를 고민 중..."
             else:
-                self.status_notice = f"🤖 AI가 바닥에서 {picked_tile_info} 패를 가져왔습니다!"
+                self.status_notice = f"🤖 AI가 바닥에서 {picked_info}을(를) 가져왔습니다. 버릴 패를 고민 중..."
 
-        # 유저가 무엇을 주웠는지 볼 수 있도록 1.2초 대기
-        await asyncio.sleep(1.2)
-        if not self.game_started or self.current_turn != 2:
-            return
+            # 패를 가져온 즉시 클라이언트에 화면을 갱신 (상대패 6장 됨)
+            await send_state_to_ws(ws, self, 1)
 
-        # 2. DISCARD 단계
-        if self.turn_phase == "discard":
+            # 2. 패를 쥐고 1.5초 동안 충분히 고민한 뒤 버림
+            await asyncio.sleep(1.5)
+            if not self.game_started or self.current_turn != 2 or self.turn_phase != "discard":
+                return
+
+            # 쯔모 검사
             if evaluate_hand(self.players[2], is_incidental=False):
                 self.declare_tsumo(2)
                 self.status_notice = None
+                await send_state_to_ws(ws, self, 1)
                 return
 
             hand = self.players[2]
 
+            # 리치 상태인 경우 뽑은 패 방출
             if self.riichi[2]:
                 chosen = next((t for t in hand if t["id"] == self.last_drawn_id[2]), hand[-1])
                 self.discard_tile(2, chosen["id"], declare_riichi=False)
                 self.status_notice = None
+                await send_state_to_ws(ws, self, 1)
                 return
 
-            best_tile = None
             should_riichi = False
 
             if self.ai_diff == "low":
                 chosen = random.choice(hand)
-                declare_r = False
             else:
                 candidates = []
                 for t in hand:
@@ -505,11 +509,13 @@ class GameSession:
                     elif self.ai_diff == "high":
                         should_riichi = (best_live_outs >= 2 and best_score >= 35)
 
-            # 버리기 전 1.0초 고민 후 버림
-            self.status_notice = "🤖 AI가 버릴 패를 선택하고 있습니다..."
-            await asyncio.sleep(1.0)
+            # 패 버리기 실행
             self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
             self.status_notice = None
+            await send_state_to_ws(ws, self, 1)
+
+        finally:
+            self.ai_thinking = False
 
 multi_game = GameSession(mode="multi")
 multi_connections = {}
@@ -570,17 +576,18 @@ async def broadcast_multi():
         await send_state_to_ws(ws, multi_game, p_num)
 
 async def timer_background_task():
+    """타이머는 독립적으로 정확히 1초씩 감소하며 AI 행동에 묶이지 않음"""
     while True:
         try:
             await asyncio.sleep(1)
-            # 2인 모드
+            # 2인 모드 타이머
             if multi_game.game_started and multi_game.turn_phase in ["draw", "discard"] and multi_game.time_limit > 0:
                 multi_game.time_left -= 1
                 if multi_game.time_left <= 0:
                     multi_game.handle_timeout()
                 await broadcast_multi()
 
-            # 1인 모드
+            # 1인 모드 타이머
             for ws, s_game in list(single_sessions.items()):
                 if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
                     s_game.time_left -= 1
@@ -588,9 +595,10 @@ async def timer_background_task():
                         s_game.handle_timeout()
                     await send_state_to_ws(ws, s_game, 1)
 
-                if s_game.game_started and s_game.current_turn == 2 and s_game.turn_phase in ["draw", "discard"]:
-                    await s_game.run_ai_turn()
-                    await send_state_to_ws(ws, s_game, 1)
+                # AI 차례 감지 시 별도 비동기 태스크로 실행 (타이머 블로킹 방지)
+                if s_game.game_started and s_game.current_turn == 2 and not s_game.ai_thinking:
+                    asyncio.create_task(s_game.execute_ai_step(ws))
+
         except Exception:
             pass
 
@@ -693,8 +701,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
+                        active_game.game_started = True
                         active_game.reset_round()
                     elif active_game.ready[1] and active_game.ready[2]:
+                        active_game.game_started = True
                         active_game.reset_round()
                 elif act == "reset_game":
                     active_game.scores = {1: 0, 2: 0}
@@ -703,6 +713,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
+                    if active_game.game_started and active_game.current_turn == 2 and not active_game.ai_thinking:
+                        asyncio.create_task(active_game.execute_ai_step(websocket))
                 else:
                     await broadcast_multi()
 
