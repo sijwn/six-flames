@@ -37,17 +37,14 @@ def evaluate_hand(tiles, is_incidental=False):
         }
 
     # 2. 개화 (8점 + 별보너스) [하우스 룰]: 위쪽 1~6, 아래쪽 6~1 대칭 구성
-    # 타일 조합: (1,6) 2장, (2,5) 2장, (3,4) 2장 (플립 고려)[cite: 6]
-    if (sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]) or \
-       (sorted(tops) == [6, 5, 4, 3, 2, 1] and sorted(bottoms) == [6, 5, 4, 3, 2, 1]):
-        # 각 타일의 합이 모두 7인지 확인 (1+6, 2+5, 3+4, 4+3, 5+2, 6+1)[cite: 6]
+    if (sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]):
         if all(t["top"] + t["bottom"] == 7 for t in tiles):
             if 8 > best_base:
                 best_name = "개화"
                 best_base = 8
                 best_stars = star_count
 
-    # 3. 연쇄 (6점, 보너스 무시) [하우스 룰]: 1-2, 2-3, 3-4, 4-5, 5-6, 6-1 꼬리물기 체인[cite: 6]
+    # 3. 연쇄 (6점, 보너스 무시) [하우스 룰]: 1-2, 2-3, 3-4, 4-5, 5-6, 6-1 체인
     chain_pairs = sorted([tuple(sorted((t["top"], t["bottom"]))) for t in tiles])
     if chain_pairs == [(1, 2), (1, 6), (2, 3), (3, 4), (4, 5), (5, 6)]:
         if 6 > best_base:
@@ -106,7 +103,7 @@ def evaluate_hand(tiles, is_incidental=False):
                 best_stars = star_count
             break
 
-    # 9. 동형 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 정확히 1이 1개, 2가 2개, 3이 3개 [1, 2, 2, 3, 3, 3]
+    # 9. 동형 (1점 + 별보너스) [하우스 룰]: 위쪽 숫자가 1이 1개, 2가 2개, 3이 3개 (1, 2, 2, 3, 3, 3)
     if sorted(tops) == [1, 2, 2, 3, 3, 3]:
         if 1 > best_base:
             best_name = "동형"
@@ -136,15 +133,6 @@ def evaluate_hand(tiles, is_incidental=False):
             "total_score": best_base + best_stars
         }
     return None
-
-def check_can_riichi(hand_5):
-    for t in range(1, 7):
-        for b in range(t, 7):
-            fake1 = {"id": "fake", "top": t, "bottom": b, "is_double": (t == b)}
-            fake2 = {"id": "fake", "top": b, "bottom": t, "is_double": (t == b)}
-            if evaluate_hand(hand_5 + [fake1], is_incidental=False) or evaluate_hand(hand_5 + [fake2], is_incidental=False):
-                return True
-    return False
 
 def check_incidental_win(hand_5, discards):
     best = None
@@ -261,10 +249,9 @@ class SixFlamesGame:
         if not target:
             return False
 
+        # 리치 선언 버튼을 누르고 패를 버리면 무조건 리치 적용
         if declare_riichi and not self.riichi[p_num]:
-            temp_hand = [t for t in hand if t["id"] != tile_id]
-            if check_can_riichi(temp_hand):
-                self.riichi[p_num] = True
+            self.riichi[p_num] = True
 
         hand.remove(target)
         self.discards.append(target)
@@ -406,13 +393,8 @@ async def broadcast_state():
 
         current_yaku = evaluate_hand(my_hand, is_incidental=False) if len(my_hand) == 6 else None
         
-        can_riichi = False
-        if p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num]:
-            for t in my_hand:
-                remain = [x for x in my_hand if x["id"] != t["id"]]
-                if check_can_riichi(remain):
-                    can_riichi = True
-                    break
+        # 텐파이 검증 없이 내 차례의 버리기 단계이고 리치 전이면 항상 True
+        can_riichi = (p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
 
         can_ron = False
         if p_num == game.current_turn and game.turn_phase == "draw" and game.last_discard:
