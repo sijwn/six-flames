@@ -14,7 +14,25 @@
     .container { max-width: 860px; margin: 0 auto; background: #1e293b; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
     
     .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
-    .score-box { text-align: center; }
+    .score-box { text-align: center; padding: 6px 16px; border-radius: 8px; transition: all 0.3s; }
+    .player-label { font-size: 15px; font-weight: bold; color: #94a3b8; transition: color 0.3s; }
+    
+    /* 현재 턴인 플레이어 발광 효과 */
+    .score-box.active-turn {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+      animation: turnGlow 1.5s infinite alternate;
+    }
+    .score-box.active-turn .player-label {
+      color: #38bdf8;
+      text-shadow: 0 0 8px #38bdf8;
+    }
+    @keyframes turnGlow {
+      from { box-shadow: 0 0 8px rgba(56, 189, 248, 0.2); }
+      to { box-shadow: 0 0 18px rgba(56, 189, 248, 0.6); }
+    }
+
     .score-val { font-size: 24px; font-weight: bold; color: #f59e0b; }
     .riichi-badge { background: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 6px; animation: pulse 1s infinite alternate; }
     @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; } }
@@ -159,8 +177,15 @@
 </head>
 <body>
   <div class="container">
+    <!-- 로비 화면 (양측 조작 및 내 번호 표기) -->
     <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
       <h2>🔥 여섯 불꽃 로비</h2>
+      
+      <!-- 내 플레이어 번호 배지 -->
+      <div style="margin-bottom: 12px;">
+        <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;">접속 대기 중...</span>
+      </div>
+
       <p style="color:#94a3b8; font-size:13px;">두 플레이어 모두 목표 점수와 제한 시간을 자유롭게 조작할 수 있습니다.</p>
       <div id="lobby-settings" style="margin: 15px 0;">
         <label>목표 점수: </label>
@@ -181,10 +206,11 @@
       <div id="lobby-status" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
     </div>
 
+    <!-- 인게임 화면 -->
     <div id="game-panel">
       <div class="scoreboard">
-        <div class="score-box">
-          <div style="font-size:13px; color:#94a3b8;">1P</div>
+        <div class="score-box" id="p1-score-box">
+          <div class="player-label" id="p1-label">1P</div>
           <div class="score-val" id="p1-score">0점</div>
           <div id="p1-riichi-tag"></div>
         </div>
@@ -192,8 +218,8 @@
           <div style="font-size: 12px; color:#94a3b8;">목표: <span id="target-score-txt">10</span>점</div>
           <div class="timer-badge" id="timer-box">⏱ <span id="timer-val">60</span>s</div>
         </div>
-        <div class="score-box">
-          <div style="font-size:13px; color:#94a3b8;">2P</div>
+        <div class="score-box" id="p2-score-box">
+          <div class="player-label" id="p2-label">2P</div>
           <div class="score-val" id="p2-score">0점</div>
           <div id="p2-riichi-tag"></div>
         </div>
@@ -251,7 +277,7 @@
           <!-- 무쌍 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>무쌍</span> <span>9점 (3+★6)</span></div>
-            <div class="yaku-desc">1/1부터 6/6까지 모든 별(더블) 타일을 1장씩 맞춤[cite: 4]</div>
+            <div class="yaku-desc">1/1부터 6/6까지 모든 별(더블) 타일을 1장씩 맞춤</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -265,7 +291,7 @@
           <!-- 개화 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>개화 (하우스 룰)</span> <span>8점 + ★보너스</span></div>
-            <div class="yaku-desc">위쪽은 1~6, 아래쪽은 6~1로 마주 보며 피어나는 형태 [1/6] [2/5] [3/4] [4/3] [5/2] [6/1]</div>
+            <div class="yaku-desc">위쪽은 1~6, 아래쪽은 6~1로 마주 보며 피어나는 형태</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
@@ -279,7 +305,7 @@
           <!-- 연쇄 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>연쇄 (하우스 룰)</span> <span>6점 (보너스 무시)</span></div>
-            <div class="yaku-desc">1부터 6까지 꼬리를 물며 순환하는 도미노 체인 [2/1] [3/2] [4/3] [5/4] [6/5] [1/6]</div>
+            <div class="yaku-desc">1부터 6까지 꼬리를 물며 순환하는 도미노 체인</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
@@ -293,7 +319,7 @@
           <!-- 육화 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>육화</span> <span>6점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속[cite: 4]</div>
+            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
@@ -308,7 +334,7 @@
           <!-- 삼동 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>삼동</span> <span>5점 + ★보너스</span></div>
-            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성[cite: 4]</div>
+            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
@@ -324,7 +350,7 @@
           <!-- 휘광 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>휘광</span> <span>5점 (보너스 무시)</span></div>
-            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성[cite: 4]</div>
+            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -338,7 +364,7 @@
           <!-- 삼연 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>삼연</span> <span>3점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌[cite: 4]</div>
+            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
@@ -353,7 +379,7 @@
           <!-- 삼색 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>삼색</span> <span>3점 (겸사겸사 전용)</span></div>
-            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)[cite: 4]</div>
+            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
@@ -367,12 +393,12 @@
           <!-- 동형 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>동형 (하우스 룰)</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">위쪽 숫자가 1이 1개, 2가 2개, 3이 3개 [1, 2, 2, 3, 3, 3] 형태 (아래 무관)[cite: 4]</div>
+            <div class="yaku-desc">위쪽 숫자가 1이 1개, 2가 2개, 3이 3개 형태 (아래 무관)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
               <span class="m-group-sep">|</span>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
               <span class="m-group-sep">|</span>
               <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
               <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
@@ -383,7 +409,7 @@
           <!-- 일색 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>일색</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)[cite: 4]</div>
+            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
               <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
@@ -398,8 +424,8 @@
           <div class="yaku-card" style="border-color:#38bdf8;">
             <div class="yaku-title"><span style="color:#38bdf8;">★ 보너스 & 리치</span> <span>각 +1점</span></div>
             <div class="yaku-desc">
-              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)[cite: 4]<br>
-              • <strong>리치</strong>: 텐파이 상태에서 선언 후 완성 시 +1점[cite: 2]
+              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)<br>
+              • <strong>리치</strong>: 텐파이 상태에서 선언 후 완성 시 +1점
             </div>
             <div class="visual-example" style="justify-content: flex-start; gap: 8px;">
               <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
@@ -441,6 +467,8 @@
       if (data.type === 'wait') {
         myPlayer = data.player_num;
         document.getElementById('status-bar').innerText = '상대방의 접속을 기다리고 있습니다...';
+        const roleEl = document.getElementById('lobby-my-role');
+        if (roleEl) roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
         return;
       }
       if (data.type === 'full') {
@@ -454,6 +482,12 @@
       myRiichiActive = data.riichi[myPlayer];
       lastDrawnId = data.last_drawn_id;
       currentHand = data.my_hand || [];
+
+      // 로비에서 내 번호 표시 갱신
+      const roleEl = document.getElementById('lobby-my-role');
+      if (roleEl && myPlayer) {
+        roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
+      }
 
       if (currentPhase === 'draw' && !myRiichiActive) {
         riichiPending = false;
@@ -487,6 +521,27 @@
       document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
       document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
 
+      // 스코어보드 내 번호 표기 및 현재 턴 플레이어 발광 효과
+      document.getElementById('p1-label').innerText = (myPlayer === 1) ? '1P (나)' : '1P';
+      document.getElementById('p2-label').innerText = (myPlayer === 2) ? '2P (나)' : '2P';
+
+      const p1Box = document.getElementById('p1-score-box');
+      const p2Box = document.getElementById('p2-score-box');
+      const turnPlayer = isMyTurn ? myPlayer : (myPlayer === 1 ? 2 : 1);
+
+      if (data.game_started && !data.show_all) {
+        if (turnPlayer === 1) {
+          p1Box.classList.add('active-turn');
+          p2Box.classList.remove('active-turn');
+        } else {
+          p2Box.classList.add('active-turn');
+          p1Box.classList.remove('active-turn');
+        }
+      } else {
+        p1Box.classList.remove('active-turn');
+        p2Box.classList.remove('active-turn');
+      }
+
       const timerBox = document.getElementById('timer-box');
       if (data.time_limit > 0) {
         timerBox.style.display = 'inline-flex';
@@ -497,7 +552,6 @@
         timerBox.style.display = 'none';
       }
 
-      const oppPlayer = myPlayer === 1 ? 2 : 1;
       const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
       document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
 
