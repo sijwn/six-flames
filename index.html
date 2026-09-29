@@ -40,7 +40,7 @@
     }
     .tile:hover:not(.locked) { transform: translateY(-4px); }
     .tile.locked { opacity: 0.5; cursor: not-allowed; }
-    .tile.drawn-highlight { border: 2px solid #38bdf8; }
+    .tile.drawn-highlight { border: 2px solid #38bdf8 !important; box-shadow: 0 0 10px #38bdf8 !important; }
     .tile.last-discard { border: 2px solid #facc15; box-shadow: 0 0 10px #facc15; }
     .tile.selectable-discard { border: 2px dashed #4ade80 !important; cursor: pointer !important; }
     .tile.selectable-discard:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 0 12px #4ade80; }
@@ -74,7 +74,6 @@
     .discards-box { background: #0f172a; border-radius: 8px; padding: 8px; min-height: 85px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
     .sec-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin-top: 10px; }
 
-    /* 결과 정산 리스트 */
     .settlement-card { background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 8px 12px; margin: 6px 0; text-align: left; font-size: 14px; }
     .settlement-card.win { border-left-color: #4ade80; }
     .settlement-card.incidental { border-left-color: #facc15; }
@@ -82,8 +81,6 @@
 </head>
 <body>
   <div class="container">
-    
-    <!-- 로비 화면 -->
     <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
       <h2>🔥 여섯 불꽃 로비</h2>
       <div id="lobby-settings" style="margin: 15px 0;">
@@ -105,7 +102,6 @@
       <div id="lobby-status" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
     </div>
 
-    <!-- 인게임 화면 -->
     <div id="game-panel">
       <div class="scoreboard">
         <div class="score-box">
@@ -141,7 +137,6 @@
         <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
       </div>
 
-      <!-- 론 모달 (문구 수정) -->
       <div id="ron-modal" style="display:none; text-align:center; margin: 10px 0; background: #334155; padding: 12px; border-radius: 8px;">
         <div style="color:#facc15; font-weight:bold; margin-bottom: 8px;">상대 버림패로 완성 가능!</div>
         <button class="btn-ron" onclick="actionRon('steal')">론 선언 (상대 점수 강탈)</button>
@@ -158,12 +153,11 @@
       <div class="sec-label">내 손패 (패 클릭: 버리기 | ◀, ▶ / 드래그: 순서 이동 | ↻: 위아래 뒤집기)</div>
       <div class="hand-container" id="my-hand"></div>
 
-      <!-- 라운드 결과 & 정산 패널 -->
       <div id="ready-panel" style="display:none; margin-top: 15px; background: #0f172a; padding: 16px; border-radius: 10px;">
-        <h3 style="margin-top:0; text-align:center; color:#facc15;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
+        <h3 id="panel-title" style="margin-top:0; text-align:center; color:#facc15;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
         <div id="settlement-list" style="margin-bottom: 14px;"></div>
         <div style="text-align:center;">
-          <button id="btn-ready" onclick="actionNextReady()" style="background:#10b981; font-size: 15px; padding: 10px 24px;">다음 판 준비</button>
+          <button id="btn-ready" onclick="actionNextStep()" style="background:#10b981; font-size: 15px; padding: 10px 24px;">다음 판 준비</button>
           <div id="ready-status" style="font-size: 12px; color: #94a3b8; margin-top: 6px;"></div>
         </div>
       </div>
@@ -200,7 +194,6 @@
       lastDrawnId = data.last_drawn_id;
       currentHand = data.my_hand || [];
 
-      // 라운드가 새로 시작되었으면 로컬 리치 펜딩 초기화
       if (currentPhase === 'draw' && !myRiichiActive) {
         riichiPending = false;
         document.getElementById('btn-riichi').style.outline = 'none';
@@ -263,7 +256,6 @@
       document.getElementById('deck-count').innerText = data.deck_count;
       document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
 
-      // 리치 버튼 표시 복구 및 비활성화 제어
       const btnRiichi = document.getElementById('btn-riichi');
       btnRiichi.style.display = 'inline-block';
       if (myRiichiActive) {
@@ -297,7 +289,6 @@
         discardsDiv.appendChild(tileEl);
       });
 
-      // 상대방 패 렌더링 (라운드 종료 시 6장 전체 앞면 공개)
       const oppHandDiv = document.getElementById('opp-hand');
       oppHandDiv.innerHTML = '';
       if (data.show_all && data.opp_hand) {
@@ -314,8 +305,9 @@
       const myHandDiv = document.getElementById('my-hand');
       myHandDiv.innerHTML = '';
       currentHand.forEach((t, idx) => {
-        const isLocked = myRiichiActive && (t.id !== lastDrawnId);
         const isDrawn = (t.id === lastDrawnId);
+        // 리치 상태일 때 패가 6장이면 뽑은 패 제외하고 잠금
+        const isLocked = myRiichiActive && (currentHand.length === 6) && (t.id !== lastDrawnId);
         
         const wrap = document.createElement('div');
         wrap.className = 'tile-wrap';
@@ -356,13 +348,16 @@
         myHandDiv.appendChild(wrap);
       });
 
-      // 점수 상세 내역 렌더링
+      // 점수 상세 내역 렌더링 및 종료 버튼 제어
       const readyPanel = document.getElementById('ready-panel');
       if (data.show_all) {
         readyPanel.style.display = 'block';
+        const isGameOver = (data.phase === 'game_over');
+        
+        document.getElementById('panel-title').innerText = isGameOver ? '👑 최종 승리 결정!' : '🏆 라운드 종료 (패 공개 및 점수 정산)';
+        
         const setList = document.getElementById('settlement-list');
         setList.innerHTML = '';
-
         if (data.settlements && data.settlements.length > 0) {
           data.settlements.forEach(s => {
             const card = document.createElement('div');
@@ -372,10 +367,19 @@
           });
         }
 
-        const myReady = data.ready[myPlayer];
-        document.getElementById('btn-ready').disabled = myReady;
-        document.getElementById('btn-ready').innerText = myReady ? '준비 완료 (상대 대기 중)' : '다음 판 준비';
-        document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+        const btnReady = document.getElementById('btn-ready');
+        if (isGameOver) {
+          btnReady.innerText = '게임 초기화 (로비로 이동)';
+          btnReady.style.background = '#e11d48';
+          btnReady.disabled = false;
+          document.getElementById('ready-status').innerText = '누구든 클릭 시 로비로 완전히 돌아갑니다.';
+        } else {
+          const myReady = data.ready[myPlayer];
+          btnReady.innerText = myReady ? '준비 완료 (상대 대기 중)' : '다음 판 준비';
+          btnReady.style.background = '#10b981';
+          btnReady.disabled = myReady;
+          document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+        }
       } else {
         readyPanel.style.display = 'none';
       }
@@ -467,8 +471,12 @@
       ws.send(JSON.stringify({ action: 'ready' }));
     }
 
-    function actionNextReady() {
-      ws.send(JSON.stringify({ action: 'ready_next' }));
+    function actionNextStep() {
+      if (currentPhase === 'game_over') {
+        ws.send(JSON.stringify({ action: 'reset_game' }));
+      } else {
+        ws.send(JSON.stringify({ action: 'ready_next' }));
+      }
     }
 
     function sendSettings() {
