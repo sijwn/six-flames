@@ -11,13 +11,17 @@
     }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 12px; }
-    .container { max-width: 860px; margin: 0 auto; background: #1e293b; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+    .container { max-width: 860px; margin: 0 auto; background: #1e293b; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); position: relative; }
     
+    .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .btn-home { background: #475569; color: #f8fafc; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+    .btn-home:hover { background: #64748b; }
+
     .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
     .score-box { text-align: center; padding: 6px 16px; border-radius: 8px; transition: all 0.3s; }
     .player-label { font-size: 15px; font-weight: bold; color: #94a3b8; transition: color 0.3s; }
     
-    /* 현재 턴인 플레이어 발광 효과 */
+    /* 턴인 플레이어 발광 효과 */
     .score-box.active-turn {
       background: rgba(59, 130, 246, 0.15);
       border: 1px solid rgba(56, 189, 248, 0.4);
@@ -101,7 +105,6 @@
     .yaku-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
     .yaku-header h3 { margin: 0; color: #38bdf8; font-size: 16px; }
     .btn-toggle-guide { background: #1e293b; color: #cbd5e1; border: 1px solid #475569; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; }
-    .btn-toggle-guide:hover { background: #334155; color: #fff; }
 
     .yaku-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 14px; }
     .yaku-card { background: #1e293b; border-radius: 8px; padding: 12px; border: 1px solid #475569; font-size: 13px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -109,84 +112,75 @@
     .yaku-desc { color: #cbd5e1; font-size: 12px; line-height: 1.4; margin-bottom: 10px; min-height: 34px; }
 
     .visual-example {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #090d16;
-      padding: 8px;
-      border-radius: 6px;
-      gap: 4px;
-      overflow-x: auto;
-      border: 1px solid #1e293b;
+      display: flex; align-items: center; justify-content: center;
+      background: #090d16; padding: 8px; border-radius: 6px; gap: 4px; overflow-x: auto; border: 1px solid #1e293b;
     }
     .m-tile {
-      display: inline-flex;
-      flex-direction: column;
-      width: 25px;
-      height: 44px;
-      background: #fafafa;
-      border-radius: 3px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-      border: 1px solid #cbd5e1;
-      font-weight: bold;
-      text-align: center;
-      flex-shrink: 0;
+      display: inline-flex; flex-direction: column; width: 25px; height: 44px;
+      background: #fafafa; border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      border: 1px solid #cbd5e1; font-weight: bold; text-align: center; flex-shrink: 0;
     }
-    .m-half {
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      line-height: 1;
+    .m-half { height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+    .m-divider { height: 1px; background: #94a3b8; position: relative; }
+    .m-star { position: absolute; top: -4.5px; left: calc(50% - 4px); width: 8px; height: 8px; color: #ef4444; font-size: 7px; background: #fafafa; border-radius: 50%; line-height: 8px; text-align: center; }
+    .m-hatch { background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 2px, #cbd5e1 2px, #cbd5e1 4px); color: transparent; }
+    .m-group-sep { color: #64748b; font-size: 12px; font-weight: bold; padding: 0 1px; }
+    .m-arrow { color: #38bdf8; font-size: 12px; margin-left: 2px; }
+
+    /* 모드 선택 카드 */
+    .mode-select-box { display: flex; gap: 16px; justify-content: center; margin: 30px 0; }
+    .mode-btn-card {
+      background: #0f172a; border: 2px solid #3b82f6; border-radius: 12px;
+      padding: 24px; width: 220px; text-align: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
     }
-    .m-divider {
-      height: 1px;
-      background: #94a3b8;
-      position: relative;
-    }
-    .m-star {
-      position: absolute;
-      top: -4.5px;
-      left: calc(50% - 4px);
-      width: 8px;
-      height: 8px;
-      color: #ef4444;
-      font-size: 7px;
-      background: #fafafa;
-      border-radius: 50%;
-      line-height: 8px;
-      text-align: center;
-    }
-    .m-hatch {
-      background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 2px, #cbd5e1 2px, #cbd5e1 4px);
-      color: transparent;
-    }
-    .m-group-sep {
-      color: #64748b;
-      font-size: 12px;
-      font-weight: bold;
-      padding: 0 1px;
-    }
-    .m-arrow {
-      color: #38bdf8;
-      font-size: 12px;
-      margin-left: 2px;
-    }
+    .mode-btn-card:hover { transform: translateY(-5px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- 로비 화면 (양측 조작 및 내 번호 표기) -->
-    <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
-      <h2>🔥 여섯 불꽃 로비</h2>
+    
+    <div class="top-nav">
+      <button class="btn-home" onclick="actionGoHome()">🏠 모드 선택 (로비로)</button>
+      <div id="top-mode-badge" style="font-size: 13px; color: #38bdf8; font-weight: bold;"></div>
+    </div>
+
+    <!-- 1. 모드 선택 화면 (메인 홈) -->
+    <div id="mode-panel" style="text-align: center; padding: 30px 0;">
+      <h1 style="color: #facc15; margin-bottom: 8px;">🔥 여섯 불꽃 (Six Flames)</h1>
+      <p style="color: #94a3b8; margin-bottom: 24px;">플레이 방식을 선택해 주세요</p>
       
-      <!-- 내 플레이어 번호 배지 -->
-      <div style="margin-bottom: 12px;">
-        <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;">접속 대기 중...</span>
+      <div class="mode-select-box">
+        <div class="mode-btn-card" onclick="openSingleSetup()">
+          <h2 style="color: #38bdf8; margin: 0 0 10px 0;">1인 모드</h2>
+          <p style="color: #cbd5e1; font-size: 13px; margin: 0;">AI를 상대로 연습 게임을 진행합니다.</p>
+        </div>
+        <div class="mode-btn-card" onclick="selectMultiMode()">
+          <h2 style="color: #4ade80; margin: 0 0 10px 0;">2인 모드</h2>
+          <p style="color: #cbd5e1; font-size: 13px; margin: 0;">온라인에서 플레이어와 1대1 대결을 진행합니다.</p>
+        </div>
       </div>
 
-      <p style="color:#94a3b8; font-size:13px;">두 플레이어 모두 목표 점수와 제한 시간을 자유롭게 조작할 수 있습니다.</p>
+      <!-- 1인 모드 난이도 선택창 -->
+      <div id="single-diff-setup" style="display: none; background: #0f172a; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto; border: 1px solid #334155;">
+        <h3 style="margin-top: 0; color: #facc15;">🤖 AI 난이도 설정</h3>
+        <div style="margin: 15px 0;">
+          <label><input type="radio" name="ai-diff" value="low"> 초급 (하)</label> &nbsp;&nbsp;
+          <label><input type="radio" name="ai-diff" value="mid" checked> 중급 (중)</label> &nbsp;&nbsp;
+          <label><input type="radio" name="ai-diff" value="high"> 고급 (상)</label>
+        </div>
+        <button onclick="startSingleMode()" style="background: #38bdf8; width: 100%;">1인 모드 시작하기</button>
+      </div>
+    </div>
+
+    <!-- 2. 게임 설정 로비 화면 (양측 조작 및 준비) -->
+    <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
+      <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
+      
+      <div style="margin-bottom: 12px;">
+        <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;"></span>
+      </div>
+
+      <p style="color:#94a3b8; font-size:13px;">목표 점수와 턴 제한 시간을 조작한 후 준비 완료를 눌러주세요.</p>
       <div id="lobby-settings" style="margin: 15px 0;">
         <label>목표 점수: </label>
         <input type="number" id="inp-target" value="10" min="1" max="999" 
@@ -206,8 +200,8 @@
       <div id="lobby-status" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
     </div>
 
-    <!-- 인게임 화면 -->
-    <div id="game-panel">
+    <!-- 3. 인게임 화면 -->
+    <div id="game-panel" style="display:none;">
       <div class="scoreboard">
         <div class="score-box" id="p1-score-box">
           <div class="player-label" id="p1-label">1P</div>
@@ -266,7 +260,7 @@
         </div>
       </div>
 
-      <!-- 접기/열기(온오프) 가능한 역 일람표 -->
+      <!-- 접기/열기 가능한 역 일람표 -->
       <div class="yaku-guide-wrap">
         <div class="yaku-header" onclick="toggleYakuGuide()">
           <h3>📜 역(족보) 일람 및 예시 안내</h3>
@@ -277,7 +271,7 @@
           <!-- 무쌍 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>무쌍</span> <span>9점 (3+★6)</span></div>
-            <div class="yaku-desc">1/1부터 6/6까지 모든 별(더블) 타일을 1장씩 맞춤</div>
+            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -397,12 +391,12 @@
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
               <span class="m-group-sep">|</span>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
               <span class="m-group-sep">|</span>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
             </div>
           </div>
 
@@ -449,6 +443,23 @@
     let draggedTileId = null;
     let isGuideOpen = true;
 
+    function openSingleSetup() {
+      document.getElementById('single-diff-setup').style.display = 'block';
+    }
+
+    function startSingleMode() {
+      const diff = document.querySelector('input[name="ai-diff"]:checked').value;
+      ws.send(JSON.stringify({ action: 'select_mode', mode: 'single', diff: diff }));
+    }
+
+    function selectMultiMode() {
+      ws.send(JSON.stringify({ action: 'select_mode', mode: 'multi' }));
+    }
+
+    function actionGoHome() {
+      ws.send(JSON.stringify({ action: 'go_home' }));
+    }
+
     function toggleYakuGuide() {
       isGuideOpen = !isGuideOpen;
       const grid = document.getElementById('yaku-grid');
@@ -466,9 +477,6 @@
       const data = JSON.parse(event.data);
       if (data.type === 'wait') {
         myPlayer = data.player_num;
-        document.getElementById('status-bar').innerText = '상대방의 접속을 기다리고 있습니다...';
-        const roleEl = document.getElementById('lobby-my-role');
-        if (roleEl) roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
         return;
       }
       if (data.type === 'full') {
@@ -483,36 +491,65 @@
       lastDrawnId = data.last_drawn_id;
       currentHand = data.my_hand || [];
 
-      // 로비에서 내 번호 표시 갱신
-      const roleEl = document.getElementById('lobby-my-role');
-      if (roleEl && myPlayer) {
-        roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
+      // 네비게이션 모드 배지
+      const topBadge = document.getElementById('top-mode-badge');
+      if (data.mode === 'single') {
+        const diffKo = { 'low': '하', 'mid': '중', 'high': '상' }[data.ai_diff];
+        topBadge.innerText = `🤖 1인 모드 (난이도: ${diffKo})`;
+      } else if (data.mode === 'multi') {
+        topBadge.innerText = `👥 2인 모드 (온라인 대전)`;
+      } else {
+        topBadge.innerText = '';
       }
 
-      if (currentPhase === 'draw' && !myRiichiActive) {
-        riichiPending = false;
-        document.getElementById('btn-riichi').style.outline = 'none';
+      // 1. 모드 선택창 제어
+      if (data.mode === 'none') {
+        document.getElementById('mode-panel').style.display = 'block';
+        document.getElementById('lobby-panel').style.display = 'none';
+        document.getElementById('game-panel').style.display = 'none';
+        document.getElementById('single-diff-setup').style.display = 'none';
+        return;
       }
 
+      // 2. 대전 로비 화면 제어
       if (!data.game_started) {
+        document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'block';
         document.getElementById('game-panel').style.display = 'none';
-        
-        document.getElementById('inp-target').disabled = false;
-        document.getElementById('sel-time').disabled = false;
-        
+
+        const roleEl = document.getElementById('lobby-my-role');
+        if (data.mode === 'single') {
+          roleEl.innerText = `👤 나 (1P) vs 🤖 AI (2P)`;
+          document.getElementById('lobby-heading').innerText = '🔥 1인 연습 대전 준비';
+        } else {
+          roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
+          document.getElementById('lobby-heading').innerText = '🔥 2인 온라인 대전 로비';
+        }
+
         if (document.activeElement !== document.getElementById('inp-target')) {
           document.getElementById('inp-target').value = data.target_score;
         }
         document.getElementById('sel-time').value = data.time_limit;
 
         document.getElementById('btn-lobby-ready').disabled = data.ready[myPlayer];
-        document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 준비 완료';
-        document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+        document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 시작 / 준비';
+        
+        if (data.mode === 'single') {
+          document.getElementById('lobby-status').innerText = '준비 완료를 누르면 바로 대전이 시작됩니다.';
+        } else {
+          document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+        }
         return;
-      } else {
-        document.getElementById('lobby-panel').style.display = 'none';
-        document.getElementById('game-panel').style.display = 'block';
+      }
+
+      // 3. 인게임 화면 제어
+      document.getElementById('mode-panel').style.display = 'none';
+      document.getElementById('lobby-panel').style.display = 'none';
+      document.getElementById('game-panel').style.display = 'block';
+
+      if (currentPhase === 'draw' && !myRiichiActive) {
+        riichiPending = false;
+        document.getElementById('btn-riichi').style.outline = 'none';
       }
 
       document.getElementById('p1-score').innerText = `${data.scores[1]}점`;
@@ -521,16 +558,20 @@
       document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
       document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
 
-      // 스코어보드 내 번호 표기 및 현재 턴 플레이어 발광 효과
-      document.getElementById('p1-label').innerText = (myPlayer === 1) ? '1P (나)' : '1P';
-      document.getElementById('p2-label').innerText = (myPlayer === 2) ? '2P (나)' : '2P';
+      // 플레이어 라벨링
+      if (data.mode === 'single') {
+        document.getElementById('p1-label').innerText = '나 (1P)';
+        document.getElementById('p2-label').innerText = 'AI (2P)';
+      } else {
+        document.getElementById('p1-label').innerText = (myPlayer === 1) ? '1P (나)' : '1P';
+        document.getElementById('p2-label').innerText = (myPlayer === 2) ? '2P (나)' : '2P';
+      }
 
+      // 턴 플레이어 발광 효과
       const p1Box = document.getElementById('p1-score-box');
       const p2Box = document.getElementById('p2-score-box');
-      const turnPlayer = isMyTurn ? myPlayer : (myPlayer === 1 ? 2 : 1);
-
       if (data.game_started && !data.show_all) {
-        if (turnPlayer === 1) {
+        if (data.current_turn === 1) {
           p1Box.classList.add('active-turn');
           p2Box.classList.remove('active-turn');
         } else {
@@ -572,7 +613,8 @@
           }
         }
       } else {
-        document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">상대방 차례 진행 중...</span>`;
+        const oppName = (data.mode === 'single') ? 'AI' : '상대방';
+        document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
       }
 
       document.getElementById('deck-count').innerText = data.deck_count;
@@ -689,16 +731,20 @@
 
         const btnReady = document.getElementById('btn-ready');
         if (isGameOver) {
-          btnReady.innerText = '게임 초기화 (로비로 이동)';
+          btnReady.innerText = '게임 초기화 (새 게임)';
           btnReady.style.background = '#e11d48';
           btnReady.disabled = false;
-          document.getElementById('ready-status').innerText = '누구든 클릭 시 로비로 완전히 돌아갑니다.';
+          document.getElementById('ready-status').innerText = '누구든 클릭 시 로비로 돌아갑니다.';
         } else {
           const myReady = data.ready[myPlayer];
-          btnReady.innerText = myReady ? '준비 완료 (상대 대기 중)' : '다음 판 준비';
+          btnReady.innerText = myReady ? '준비 완료 (대기 중)' : '다음 판 준비';
           btnReady.style.background = '#10b981';
-          btnReady.disabled = myReady;
-          document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+          btnReady.disabled = (data.mode === 'multi' && myReady);
+          if (data.mode === 'single') {
+            document.getElementById('ready-status').innerText = '클릭하면 즉시 다음 판을 시작합니다.';
+          } else {
+            document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+          }
         }
       } else {
         readyPanel.style.display = 'none';
