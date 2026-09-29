@@ -1,63 +1,224 @@
 import random
+from itertools import combinations, permutations
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 app = FastAPI()
 
+def is_same_tile(t1, t2):
+    return (t1["top"] == t2["top"] and t1["bottom"] == t2["bottom"]) or \
+           (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
+
+def evaluate_hand(tiles):
+    """6개 타일 기준 최상위 역 및 점수 판정"""
+    if len(tiles) != 6:
+        return None
+
+    star_count = sum(1 for t in tiles if t["is_double"])
+    bottoms = [t["bottom"] for t in tiles]
+    tops = [t["top"] for t in tiles]
+    all_nums = set(tops + bottoms)
+
+    best_name = None
+    best_score = -1
+
+    # 1. 휘광 (5점, 별보너스 없음)
+    if star_count == 6:
+        if 5 > best_score:
+            best_name = "휘광"
+            best_score = 5
+
+    # 2. 육화 (6점 + 별보너스)
+    if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
+        score = 6 + star_count
+        if score > best_score:
+            best_name = "육화"
+            best_score = score
+
+    # 3. 삼동 (5점 + 별보너스)
+    for p in permutations(tiles):
+        if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
+            score = 5 + star_count
+            if score > best_score:
+                best_name = "삼동"
+                best_score = score
+            break
+
+    # 4. 삼색 (3점, 별보너스 없음)
+    if len(all_nums) <= 3:
+        if 3 > best_score:
+            best_name = "삼색"
+            best_score = 3
+
+    # 5. 삼연 (3점 + 별보너스)
+    for s1_idx in combinations(range(6), 3):
+        s2_idx = [i for i in range(6) if i not in s1_idx]
+        s1 = [tiles[i] for i in s1_idx]
+        s2 = [tiles[i] for i in s2_idx]
+        
+        c1 = (len(set(t["bottom"] for t in s1)) == 1)
+        st1 = sorted(t["top"] for t in s1)
+        seq1 = (st1[0] + 1 == st1[1] and st1[1] + 1 == st1[2])
+
+        c2 = (len(set(t["bottom"] for t in s2)) == 1)
+        st2 = sorted(t["top"] for t in s2)
+        seq2 = (st2[0] + 1 == st2[1] and st2[1] + 1 == st2[2])
+
+        if c1 and seq1 and c2 and seq2:
+            score = 3 + star_count
+            if score > best_score:
+                best_name = "삼연"
+                best_score = score
+            break
+
+    # 6. 일색 (1점 + 별보너스)
+    if len(set(bottoms)) == 1:
+        score = 1 + star_count
+        if score > best_score:
+            best_name = "일색"
+            best_score = score
+
+    if best_name:
+        return {"name": best_name, "score": best_score, "stars": star_count}
+    return None
+
+def check_can_riichi(hand_5):
+    """5장 상태에서 텐파이 여부 확인"""
+    for t in range(1, 7):
+        for b in range(t, 7):
+            fake = {"id": "fake", "top": t, "bottom": b, "is_double": (t == b)}
+            if evaluate_hand(hand_5 + [fake]):
+                return True
+    return False
+
 class SixFlamesGame:
     def __init__(self):
-        self.reset()
+        self.target_score = 10
+        self.scores = {1: 0, 2: 0}
+        self.starter = random.choice([1, 2])
+        self.ready = {1: False, 2: False}
+        self.game_started = False
+        self.reset_round()
 
-    def reset(self):
-        # 21종류 x 2장 = 총 42장 도미노 덱 생성
-        unique_tiles = []
-        for top in range(1, 7):
-            for bottom in range(top, 7):  # (1,1)부터 (6,6)까지 21종
-                unique_tiles.append((top, bottom))
-
+    def reset_round(self):
+        unique = [(top, bottom) for top in range(1, 7) for bottom in range(top, 7)]
         self.deck = []
-        tile_seq = 0
+        tid = 0
         for _ in range(2):
-            for top, bottom in unique_tiles:
-                tile_seq += 1
+            for top, bottom in unique:
+                tid += 1
                 self.deck.append({
-                    "id": f"tile_{tile_seq}",
-                    "top": top,
-                    "bottom": bottom,
-                    "is_double": (top == bottom)
+                    "id": f"t_{tid}", "top": top, "bottom": bottom, "is_double": (top == bottom)
                 })
-
         random.shuffle(self.deck)
 
         self.players = {1: [], 2: []}
         self.discards = []
-        self.current_turn = 1
+        self.riichi = {1: False, 2: False}
+        self.current_turn = self.starter
+        self.turn_phase = "draw"
+        self.round_winner = None
+        self.win_reason = ""
+        self.last_drawn_id = {1: None, 2: None}
+        self.last_discard = None
+        self.ready = {1: False, 2: False}
+
+        for _ in range(5):
+            self.players[1].append(self.deck.pop())
+            self.players[2].append(self.deck.pop())
+
+    def draw_tile(self, p_num, from_discard=False):
+        if self.current_turn != p_num or self.turn_phase != "draw":
+            return False
+
+        if from_discard:
+            if not self.discards: return False
+            tile = self.discards.pop()
+        else:
+            if not self.deck:
+                self.turn_phase = "round_end"
+                self.win_reason = "유국 (패산 소진)"
+                return True
+            tile = self.deck.pop()
+
+        self.players[p_num].append(tile)
+        self.last_drawn_id[p_num] = tile["id"]
+        self.turn_phase = "discard"
+        return True
+
+    def discard_tile(self, p_num, tile_id, declare_riichi=False):
+        if self.current_turn != p_num or self.turn_phase != "discard":
+            return False
+
+        # 리치 상태일 때는 이번에 뽑은 패만 버릴 수 있음
+        if self.riichi[p_num] and tile_id != self.last_drawn_id[p_num]:
+            return False
+
+        hand = self.players[p_num]
+        target = next((t for t in hand if t["id"] == tile_id), None)
+        if not target: return False
+
+        if declare_riichi and not self.riichi[p_num]:
+            temp_hand = [t for t in hand if t["id"] != tile_id]
+            if check_can_riichi(temp_hand):
+                self.riichi[p_num] = True
+
+        hand.remove(target)
+        self.discards.append(target)
+        self.last_discard = target
+
+        opp = 2 if p_num == 1 else 1
+        opp_eval = evaluate_hand(self.players[opp] + [target])
+        if opp_eval:
+            self.turn_phase = "ron_wait"
+        else:
+            self.pass_turn()
+        return True
+
+    def pass_turn(self):
+        self.current_turn = 2 if self.current_turn == 1 else 1
         self.turn_phase = "draw"
 
-        # 시작 시 6장씩 배분
-        for _ in range(6):
-            if self.deck: self.players[1].append(self.deck.pop())
-            if self.deck: self.players[2].append(self.deck.pop())
-
-    def draw_tile(self, player_num):
-        if self.current_turn == player_num and self.turn_phase == "draw" and self.deck:
-            tile = self.deck.pop()
-            self.players[player_num].append(tile)
-            self.turn_phase = "discard"
+    def declare_tsumo(self, p_num):
+        if self.current_turn != p_num or self.turn_phase != "discard":
+            return False
+        res = evaluate_hand(self.players[p_num])
+        if res:
+            pts = res["score"] + (1 if self.riichi[p_num] else 0)
+            self.scores[p_num] += pts
+            self.round_winner = p_num
+            self.win_reason = f"완성(쯔모)! [{res['name']}] +{pts}점"
+            self.end_round()
             return True
         return False
 
-    def discard_tile(self, player_num, tile_id):
-        if self.current_turn == player_num and self.turn_phase == "discard":
-            hand = self.players[player_num]
-            target = next((t for t in hand if t["id"] == tile_id), None)
-            if target:
-                hand.remove(target)
-                self.discards.append(target)
-                self.current_turn = 2 if self.current_turn == 1 else 1
-                self.turn_phase = "draw"
-                return True
+    def declare_ron(self, p_num):
+        if self.turn_phase != "ron_wait": return False
+        opp = 2 if p_num == 1 else 1
+        res = evaluate_hand(self.players[p_num] + [self.last_discard])
+        if res:
+            pts = res["score"] + (1 if self.riichi[p_num] else 0)
+            stolen = min(self.scores[opp], pts)
+            self.scores[opp] -= stolen
+            self.scores[p_num] += stolen
+            self.round_winner = p_num
+            self.win_reason = f"론! [{res['name']}] 상대 점수 {stolen}점 강탈 (+{pts}점 어치)"
+            self.end_round()
+            return True
         return False
+
+    def skip_ron(self):
+        if self.turn_phase == "ron_wait":
+            self.pass_turn()
+            return True
+        return False
+
+    def end_round(self):
+        if self.scores[1] >= self.target_score or self.scores[2] >= self.target_score:
+            self.turn_phase = "game_over"
+        else:
+            self.turn_phase = "round_end"
+            self.starter = 2 if self.starter == 1 else 1
 
 connections = {}
 game = SixFlamesGame()
@@ -65,14 +226,48 @@ game = SixFlamesGame()
 async def broadcast_state():
     for p_num, ws in list(connections.items()):
         opp_num = 2 if p_num == 1 else 1
+
+        my_hand = game.players.get(p_num, [])
+        opp_hand = game.players.get(opp_num, [])
+
+        # 내 손패 역 계산 (6장일 때만 완성 여부)
+        current_yaku = evaluate_hand(my_hand) if len(my_hand) == 6 else None
+        
+        # 리치 선언 가능 여부 체크
+        can_riichi = False
+        if p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num]:
+            for t in my_hand:
+                remain = [x for x in my_hand if x["id"] != t["id"]]
+                if check_can_riichi(remain):
+                    can_riichi = True
+                    break
+
+        can_ron = (game.turn_phase == "ron_wait" and p_num != game.current_turn)
+        can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
+
+        show_all = (game.turn_phase in ["round_end", "game_over"])
+
         payload = {
+            "player_num": p_num,
+            "target_score": game.target_score,
             "my_turn": game.current_turn == p_num,
             "phase": game.turn_phase,
             "deck_count": len(game.deck),
-            "my_hand": game.players.get(p_num, []),
-            "opp_hand_count": len(game.players.get(opp_num, [])),
-            "discards": game.discards[-6:],
-            "current_turn": game.current_turn
+            "my_hand": my_hand,
+            "opp_hand_count": len(opp_hand),
+            "opp_hand": opp_hand if show_all else None,
+            "discards": game.discards,
+            "scores": game.scores,
+            "riichi": game.riichi,
+            "winner": game.round_winner,
+            "win_reason": game.win_reason,
+            "can_ron": can_ron,
+            "can_tsumo": can_tsumo,
+            "can_riichi": can_riichi,
+            "current_yaku": current_yaku,
+            "last_drawn_id": game.last_drawn_id[p_num],
+            "ready": game.ready,
+            "show_all": show_all
         }
         try:
             await ws.send_json(payload)
@@ -91,29 +286,49 @@ async def websocket_endpoint(websocket: WebSocket):
     elif 2 not in connections:
         p_num = 2
     else:
-        await websocket.send_json({"type": "wait", "msg": "이미 2명이 플레이 중입니다."})
+        await websocket.send_json({"type": "full", "msg": "이미 방이 가득 찼습니다."})
         await websocket.close()
         return
 
     connections[p_num] = websocket
 
     if len(connections) < 2:
-        await websocket.send_json({"type": "wait", "msg": "친구 접속을 기다리는 중입니다..."})
+        await websocket.send_json({"type": "wait", "player_num": p_num})
     else:
-        game.reset()
+        game.reset_round()
         await broadcast_state()
 
     try:
         while True:
             data = await websocket.receive_json()
-            action = data.get("action")
-            if action == "draw":
-                if game.draw_tile(p_num):
+            act = data.get("action")
+            
+            if act == "set_target":
+                if p_num == 1:
+                    game.target_score = int(data.get("score", 10))
                     await broadcast_state()
-            elif action == "discard":
-                if game.discard_tile(p_num, data.get("tile_id")):
+            elif act == "draw":
+                if game.draw_tile(p_num, from_discard=data.get("from_discard", False)):
                     await broadcast_state()
+            elif act == "discard":
+                if game.discard_tile(p_num, data.get("tile_id"), data.get("riichi", False)):
+                    await broadcast_state()
+            elif act == "tsumo":
+                if game.declare_tsumo(p_num):
+                    await broadcast_state()
+            elif act == "ron":
+                if game.declare_ron(p_num):
+                    await broadcast_state()
+            elif act == "skip_ron":
+                if game.skip_ron():
+                    await broadcast_state()
+            elif act == "ready_next":
+                game.ready[p_num] = True
+                if game.ready[1] and game.ready[2]:
+                    game.reset_round()
+                await broadcast_state()
     except WebSocketDisconnect:
         if p_num in connections:
             del connections[p_num]
-        game.reset()
+        game.scores = {1: 0, 2: 0}
+        game.reset_round()
