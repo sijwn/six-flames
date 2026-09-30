@@ -219,11 +219,16 @@ class GameSession:
             tile = target
             self.last_taken_discard = {"by": p_num, "tile": target}
         else:
+            # 패산이 비어있을 때 바닥패가 남아있다면 바닥패에서만 주울 수 있도록 방어
             if not self.deck:
-                self.turn_phase = "round_end"
-                self.round_settlement.append({"player": 0, "text": "유국 (패산 소진으로 무승부)"})
-                self.check_round_end_incidentals(winner_num=None)
-                return True
+                if len(self.discards) > 0:
+                    self.status_notice = "패산이 소진되었습니다! 바닥에 버려진 패 중에서만 가져올 수 있습니다."
+                    return False
+                else:
+                    self.turn_phase = "round_end"
+                    self.round_settlement.append({"player": 0, "text": "유국 (패산 및 바닥패 완전 소진)"})
+                    self.check_round_end_incidentals(winner_num=None)
+                    return True
             tile = self.deck.pop()
 
         self.players[p_num].append(tile)
@@ -273,6 +278,13 @@ class GameSession:
     def handle_timeout(self):
         p = self.current_turn
         if self.turn_phase == "draw":
+            # 패산이 비어있으면 강제로 패산에서 뽑지 못하므로 턴 넘김
+            if not self.deck:
+                if len(self.discards) == 0:
+                    self.turn_phase = "round_end"
+                    self.round_settlement.append({"player": 0, "text": "유국 (패산 소진 및 무승부)"})
+                    self.check_round_end_incidentals(winner_num=None)
+                    return
             self.pass_turn()
         elif self.turn_phase == "discard":
             tid_to_discard = self.last_drawn_id.get(p)
@@ -320,12 +332,11 @@ class GameSession:
         return False
 
     def declare_ron(self, p_num, mode="steal"):
-        """타가 버림패에 언제든 인터럽트하여 론 선언 가능"""
         if self.rule_level < 3 or not self.last_discard or not self.last_discard_info:
             return False
 
         opp = self.last_discard_info["by"]
-        if opp == p_num:  # 자신이 버린 패는 론 불가
+        if opp == p_num:
             return False
 
         winning_tile = self.last_discard
@@ -354,15 +365,17 @@ class GameSession:
             self.scores[opp] -= stolen
             self.scores[p_num] += stolen
             desc = f"[{p_title} 론(강탈)] {detail} = {opp_title}에게서 {stolen}점 강탈 (기본 점수: {total}점)"
+            sub_msg = f"{opp_title}의 버림패 강탈! ({detail})"
         else:
             self.scores[p_num] += total
             desc = f"[{p_title} 완성] {detail} = 공급처로부터 총 {total}점 획득"
+            sub_msg = f"공급처로부터 점수 획득! ({detail})"
 
         self.event_banner = {
             "type": "ron",
-            "title": f"⚡ {p_title} 론 직격!",
+            "title": f"⚡ {p_title} {'론 직격!' if mode == 'steal' else '역 완성!'}",
             "yaku_name": f"{res['name']}",
-            "subtext": f"{opp_title}의 버림패로 완성! ({detail})"
+            "subtext": sub_msg
         }
         self.round_winner = p_num
         self.round_settlement = [{"player": p_num, "type": "론", "text": desc}]
@@ -397,7 +410,6 @@ class GameSession:
             self.turn_phase = "game_over"
         else:
             self.turn_phase = "round_end"
-            # 시계방향으로 다음 사람에게 선공 순환
             next_starter = self.starter + 1
             if next_starter > self.max_players:
                 next_starter = 1
@@ -466,6 +478,7 @@ class GameSession:
                 picked_from_floor = False
                 picked_tile_info = None
 
+                # 바닥패 탐색
                 if self.discards:
                     base_pot = self.evaluate_hand_potential_fast(self.players[2])
                     best_gain = 0
@@ -476,11 +489,12 @@ class GameSession:
                             best_gain = gain
                             best_target = disc
 
-                    if best_target and best_gain >= 8:
-                        if self.ai_diff != "low" or random.random() < 0.4:
-                            picked_tile_info = f"[{best_target['top']}/{best_target['bottom']}]"
-                            self.draw_tile(2, discard_id=best_target["id"])
-                            picked_from_floor = True
+                    # 덱이 없으면 무조건 바닥패에서 주움
+                    if (best_target and best_gain >= 8) or (not self.deck and self.discards):
+                        target_chosen = best_target if best_target else self.discards[-1]
+                        picked_tile_info = f"[{target_chosen['top']}/{target_chosen['bottom']}]"
+                        self.draw_tile(2, discard_id=target_chosen["id"])
+                        picked_from_floor = True
 
                 if not picked_from_floor:
                     self.draw_tile(2, discard_id=None)
@@ -559,14 +573,15 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     current_yaku = evaluate_hand(my_hand, rule_level=game.rule_level, is_incidental=False) if len(my_hand) == 6 else None
     can_riichi = (game.rule_level >= 3 and p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
 
-    # 론 판정: 상대가 방금 버린 패로 완성할 수 있으면 차례와 무관하게 론 가능 (단, 본인이 버린 건 제외)
+    # 론 가능 여부: 상대가 직전에 버린 패로 내 5장 손패가 완성될 수 있는지 검사
     can_ron = False
     if game.rule_level >= 3 and game.last_discard and game.last_discard_info:
         if game.last_discard_info["by"] != p_num:
-            if evaluate_hand(my_hand[:5] + [game.last_discard], rule_level=game.rule_level, is_incidental=False):
+            hand_5 = my_hand[:5] if len(my_hand) >= 5 else my_hand
+            if evaluate_hand(hand_5 + [game.last_discard], rule_level=game.rule_level, is_incidental=False):
                 can_ron = True
 
-    # 쯔모 완성: 오직 본인 차례 버리기(discard) 단계에서만 가능
+    # 쯔모(자모) 완성 가능 여부
     can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
     show_all = (game.turn_phase in ["round_end", "game_over"])
 
@@ -776,8 +791,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif act == "tsumo":
                     active_game.declare_tsumo(curr_p)
                 elif act == "ron":
-                    # 인터럽트 론: 다른 사람 턴이어도 론 선언 즉시 처리
-                    active_game.declare_ron(curr_p, mode="steal")
+                    # 론 모드 지원: steal(강탈) 또는 direct(공급처 획득)
+                    chosen_mode = data.get("mode", "steal")
+                    active_game.declare_ron(curr_p, mode=chosen_mode)
                 elif act == "ready":
                     active_game.ready[curr_p] = True
                     is_new_game_start = False
