@@ -139,23 +139,17 @@ class GameSession:
         self.last_discard_info = None
         self.ai_task = None
         self.event_banner = None
-        self.dice_event = None  # 주사위 추첨 이벤트
+        self.dice_event = None
         self.reset_round()
 
     def roll_starter_dice(self):
-        """시작 시 주사위 2개를 굴려 선공 결정"""
-        d1 = random.randint(1, 6)
-        d2 = random.randint(1, 6)
-        total = d1 + d2
-        # (합산 - 1) % 인원수 + 1
-        chosen_starter = ((total - 1) % self.max_players) + 1
+        """플레이어 면 주사위를 굴려 1P~max_P 중 1명 직접 추첨"""
+        chosen_starter = random.randint(1, self.max_players)
         self.starter = chosen_starter
         self.current_turn = chosen_starter
         self.dice_event = {
-            "d1": d1,
-            "d2": d2,
-            "total": total,
-            "starter": chosen_starter
+            "starter": chosen_starter,
+            "max_players": self.max_players
         }
 
     def reset_round(self):
@@ -784,6 +778,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
+                        active_game.game_started = True
                         active_game.reset_round()
                     else:
                         all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
