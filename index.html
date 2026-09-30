@@ -123,7 +123,6 @@
     .m-half { height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
     .m-divider { height: 1px; background: #94a3b8; position: relative; }
     .m-star { position: absolute; top: -4.5px; left: calc(50% - 4px); width: 8px; height: 8px; color: #ef4444; font-size: 7px; background: #fafafa; border-radius: 50%; line-height: 8px; text-align: center; }
-    .m-hatch { background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 2px, #cbd5e1 2px, #cbd5e1 4px); color: transparent; }
     .m-group-sep { color: #64748b; font-size: 12px; font-weight: bold; padding: 0 1px; }
     .m-arrow { color: #38bdf8; font-size: 12px; margin-left: 2px; }
 
@@ -276,7 +275,7 @@
         </div>
       </div>
 
-      <!-- 접기/열기 가능한 역 일람표 -->
+      <!-- 접기/열기 가능한 역 일람표 (동형 제거 완료) -->
       <div class="yaku-guide-wrap">
         <div class="yaku-header" onclick="toggleYakuGuide()">
           <h3>📜 역(족보) 일람 및 예시 안내</h3>
@@ -400,33 +399,17 @@
             </div>
           </div>
 
-          <!-- 동형 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>동형 (하우스 룰)</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">위쪽 숫자가 1이 1개, 2가 2개, 3이 3개 형태 (아래 무관)</div>
-            <div class="visual-example">
-              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <span class="m-group-sep">|</span>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <span class="m-group-sep">|</span>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
-            </div>
-          </div>
-
           <!-- 일색 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>일색</span> <span>1점 + ★보너스</span></div>
             <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)</div>
             <div class="visual-example">
-              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
             </div>
           </div>
 
