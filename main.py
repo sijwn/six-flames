@@ -24,7 +24,6 @@ def evaluate_fixed_hand(tiles, rule_level=4, is_incidental=False):
     best_base = -1
     best_stars = 0
 
-    # 4단계 전용 족보
     if rule_level >= 4:
         if sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]:
             if all(t["top"] + t["bottom"] == 7 for t in tiles):
@@ -36,13 +35,11 @@ def evaluate_fixed_hand(tiles, rule_level=4, is_incidental=False):
             if 6 > best_base:
                 best_name, best_base, best_stars = "연쇄", 6, 0
 
-    # 3단계 이상 족보
     if rule_level >= 3:
         if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
             if 3 > best_base:
                 best_name, best_base, best_stars = "무쌍", 3, 6
 
-    # 2단계 이상 족보
     if rule_level >= 2:
         if star_count == 6:
             if 5 > best_base:
@@ -58,7 +55,6 @@ def evaluate_fixed_hand(tiles, rule_level=4, is_incidental=False):
             if 3 > best_base:
                 best_name, best_base, best_stars = "삼색", 3, 0
 
-    # 1단계 기본 족보
     if rule_level >= 1:
         if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
             if 6 > best_base:
@@ -125,24 +121,42 @@ def check_incidental_win(hand_5, discards, rule_level=4):
     return best
 
 class GameSession:
-    def __init__(self, mode="single", ai_diff="high"):
+    def __init__(self, mode="single", max_players=2, ai_diff="high"):
         self.mode = mode
+        self.max_players = max_players
         self.ai_diff = ai_diff
         self.rule_level = 4
         self.target_score = 10
         self.time_limit = 60
         self.ai_delay_setting = 0
         self.time_left = 60
-        self.scores = {1: 0, 2: 0}
+        self.scores = {p: 0 for p in range(1, max_players + 1)}
         self.starter = 1
-        self.ready = {1: False, 2: False}
+        self.ready = {p: False for p in range(1, max_players + 1)}
         self.game_started = False
         self.status_notice = None
         self.last_taken_discard = None
         self.last_discard_info = None
         self.ai_task = None
         self.event_banner = None
+        self.dice_event = None  # 주사위 추첨 이벤트
         self.reset_round()
+
+    def roll_starter_dice(self):
+        """시작 시 주사위 2개를 굴려 선공 결정"""
+        d1 = random.randint(1, 6)
+        d2 = random.randint(1, 6)
+        total = d1 + d2
+        # (합산 - 1) % 인원수 + 1
+        chosen_starter = ((total - 1) % self.max_players) + 1
+        self.starter = chosen_starter
+        self.current_turn = chosen_starter
+        self.dice_event = {
+            "d1": d1,
+            "d2": d2,
+            "total": total,
+            "starter": chosen_starter
+        }
 
     def reset_round(self):
         unique = [(top, bottom) for top in range(1, 7) for bottom in range(top, 7)]
@@ -156,18 +170,18 @@ class GameSession:
                 })
         random.shuffle(self.deck)
 
-        self.players = {1: [], 2: []}
+        self.players = {p: [] for p in range(1, self.max_players + 1)}
         self.discards = []
-        self.riichi = {1: False, 2: False}
+        self.riichi = {p: False for p in range(1, self.max_players + 1)}
         self.current_turn = self.starter
         self.turn_phase = "lobby" if not self.game_started else "draw"
         self.round_winner = None
         self.round_settlement = []
-        self.last_drawn_id = {1: None, 2: None}
+        self.last_drawn_id = {p: None for p in range(1, self.max_players + 1)}
         self.last_discard = None
         self.last_taken_discard = None
         self.last_discard_info = None
-        self.ready = {1: False, 2: False}
+        self.ready = {p: False for p in range(1, self.max_players + 1)}
         self.status_notice = None
         self.event_banner = None
         if self.ai_task and not self.ai_task.done():
@@ -176,14 +190,15 @@ class GameSession:
         self.time_left = self.time_limit
 
         for _ in range(5):
-            self.players[1].append(self.deck.pop())
-            self.players[2].append(self.deck.pop())
+            for p in range(1, self.max_players + 1):
+                if self.deck:
+                    self.players[p].append(self.deck.pop())
 
     def reset_timer(self):
         self.time_left = self.time_limit
 
     def flip_tile(self, p_num, tile_id):
-        hand = self.players[p_num]
+        hand = self.players.get(p_num, [])
         for t in hand:
             if t["id"] == tile_id:
                 t["top"], t["bottom"] = t["bottom"], t["top"]
@@ -191,7 +206,7 @@ class GameSession:
         return False
 
     def reorder_tiles(self, p_num, order_ids):
-        hand = self.players[p_num]
+        hand = self.players.get(p_num, [])
         id_map = {t["id"]: t for t in hand}
         new_hand = [id_map[tid] for tid in order_ids if tid in id_map]
         if len(new_hand) == len(hand):
@@ -235,7 +250,7 @@ class GameSession:
         if not target:
             return False
 
-        p_title = "1P" if p_num == 1 else ("2P" if self.mode == "multi" else "AI")
+        p_title = f"{p_num}P" if self.mode != "single" or p_num == 1 else "AI(2P)"
 
         if declare_riichi and not self.riichi[p_num] and self.rule_level >= 3:
             self.riichi[p_num] = True
@@ -255,7 +270,10 @@ class GameSession:
         return True
 
     def pass_turn(self):
-        self.current_turn = 2 if self.current_turn == 1 else 1
+        next_p = self.current_turn + 1
+        if next_p > self.max_players:
+            next_p = 1
+        self.current_turn = next_p
         self.turn_phase = "draw"
         self.reset_timer()
 
@@ -288,7 +306,7 @@ class GameSession:
             self.scores[p_num] += total
             self.round_winner = p_num
 
-            p_title = f"{p_num}P" if self.mode == "multi" or p_num == 1 else "AI(2P)"
+            p_title = f"{p_num}P" if self.mode != "single" or p_num == 1 else "AI(2P)"
             detail = f"{res['name']}({base}점)"
             if stars > 0: detail += f" + 별보너스({stars}점)"
             if riichi_pt > 0: detail += " + 리치(1점)"
@@ -314,7 +332,7 @@ class GameSession:
         if self.current_turn != p_num or self.turn_phase != "draw" or not self.last_discard:
             return False
 
-        opp = 2 if p_num == 1 else 1
+        opp = self.last_discard_info["by"] if self.last_discard_info else (2 if p_num == 1 else 1)
         winning_tile = self.last_discard
 
         res = evaluate_hand(self.players[p_num] + [winning_tile], rule_level=self.rule_level, is_incidental=False)
@@ -330,8 +348,8 @@ class GameSession:
         riichi_pt = 1 if self.riichi[p_num] else 0
         total = base + stars + riichi_pt
 
-        p_title = f"{p_num}P" if self.mode == "multi" or p_num == 1 else "AI(2P)"
-        opp_title = f"{opp}P" if self.mode == "multi" or opp == 1 else "AI(2P)"
+        p_title = f"{p_num}P" if self.mode != "single" or p_num == 1 else "AI(2P)"
+        opp_title = f"{opp}P" if self.mode != "single" or opp == 1 else "AI(2P)"
 
         detail = f"{res['name']}({base}점)"
         if stars > 0: detail += f" + 별보너스({stars}점)"
@@ -358,7 +376,7 @@ class GameSession:
         return True
 
     def check_round_end_incidentals(self, winner_num):
-        for p in [1, 2]:
+        for p in range(1, self.max_players + 1):
             if p != winner_num and len(self.players[p]) == 5:
                 res = check_incidental_win(self.players[p], self.discards, rule_level=self.rule_level)
                 if res:
@@ -370,7 +388,7 @@ class GameSession:
                     total = base + stars + riichi_pt
                     self.scores[p] += total
 
-                    p_title = f"{p}P" if self.mode == "multi" or p == 1 else "AI(2P)"
+                    p_title = f"{p}P" if self.mode != "single" or p == 1 else "AI(2P)"
                     detail = f"{res['name']}({base}점)"
                     if stars > 0: detail += f" + 별보너스({stars}점)"
                     if riichi_pt > 0: detail += " + 리치(1점)"
@@ -381,11 +399,14 @@ class GameSession:
                     })
 
     def end_round(self):
-        if self.scores[1] >= self.target_score or self.scores[2] >= self.target_score:
+        if any(self.scores[p] >= self.target_score for p in range(1, self.max_players + 1)):
             self.turn_phase = "game_over"
         else:
             self.turn_phase = "round_end"
-            self.starter = 2 if self.starter == 1 else 1
+            next_starter = self.starter + 1
+            if next_starter > self.max_players:
+                next_starter = 1
+            self.starter = next_starter
 
     def evaluate_hand_potential_fast(self, hand):
         if not hand: return 0
@@ -415,7 +436,6 @@ class GameSession:
 
             opp_score = self.scores[1]
 
-            # 1. DRAW
             if self.turn_phase == "draw":
                 if self.rule_level >= 3 and self.last_discard:
                     res_ron = evaluate_hand(self.players[2] + [self.last_discard], rule_level=self.rule_level, is_incidental=False)
@@ -461,7 +481,6 @@ class GameSession:
                 else:
                     draw_action_txt = f"바닥에서 {picked_tile_info} 패를 가져오고"
 
-            # 2. DISCARD
             if self.turn_phase == "discard":
                 res_win = evaluate_hand(self.players[2], rule_level=self.rule_level, is_incidental=False)
                 if res_win:
@@ -512,14 +531,23 @@ class GameSession:
         finally:
             self.ai_task = None
 
-multi_game = GameSession(mode="multi")
-multi_connections = {}
+multi_rooms = {
+    2: {"game": GameSession(mode="multi_2", max_players=2), "connections": {}},
+    3: {"game": GameSession(mode="multi_3", max_players=3), "connections": {}},
+    4: {"game": GameSession(mode="multi_4", max_players=4), "connections": {}}
+}
 single_sessions = {}
 
 async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
-    opp_num = 2 if p_num == 1 else 1
     my_hand = game.players.get(p_num, [])
-    opp_hand = game.players.get(opp_num, [])
+    
+    opp_hands = {}
+    for p in range(1, game.max_players + 1):
+        if p != p_num:
+            opp_hands[p] = {
+                "count": len(game.players.get(p, [])),
+                "tiles": game.players.get(p, []) if (game.turn_phase in ["round_end", "game_over"]) else None
+            }
 
     current_yaku = evaluate_hand(my_hand, rule_level=game.rule_level, is_incidental=False) if len(my_hand) == 6 else None
     can_riichi = (game.rule_level >= 3 and p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
@@ -532,16 +560,19 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
     show_all = (game.turn_phase in ["round_end", "game_over"])
 
-    # 2인 모드 상대방 연결 상태 판정
-    opp_connected = True
-    if game.mode == "multi":
-        opp_connected = (opp_num in multi_connections and multi_connections[opp_num].client_state == WebSocketState.CONNECTED)
+    connections_map = multi_rooms.get(game.max_players, {}).get("connections", {}) if game.mode != "single" else {}
+    connected_status = {}
+    for p in range(1, game.max_players + 1):
+        if game.mode == "single":
+            connected_status[p] = True
+        else:
+            connected_status[p] = (p in connections_map and connections_map[p].client_state == WebSocketState.CONNECTED)
 
-    # 실제 접속 중인 소켓 수 계산
-    active_player_count = sum(1 for conn in multi_connections.values() if conn.client_state == WebSocketState.CONNECTED)
+    active_count = sum(1 for c in connected_status.values() if c)
 
     payload = {
         "mode": game.mode,
+        "max_players": game.max_players,
         "ai_diff": game.ai_diff,
         "rule_level": game.rule_level,
         "ai_delay_setting": game.ai_delay_setting,
@@ -554,10 +585,9 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         "phase": game.turn_phase,
         "deck_count": len(game.deck),
         "my_hand": my_hand,
-        "opp_hand_count": len(opp_hand),
-        "opp_hand": opp_hand if show_all else None,
-        "opp_connected": opp_connected,
-        "multi_player_count": active_player_count,
+        "opp_hands": opp_hands,
+        "connected_status": connected_status,
+        "active_player_count": active_count,
         "discards": game.discards,
         "scores": game.scores,
         "riichi": game.riichi,
@@ -567,38 +597,41 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         "can_tsumo": can_tsumo,
         "can_riichi": can_riichi,
         "current_yaku": current_yaku,
-        "last_drawn_id": game.last_drawn_id[p_num],
+        "last_drawn_id": game.last_drawn_id.get(p_num),
         "ready": game.ready,
         "show_all": show_all,
         "game_started": game.game_started,
         "status_notice": game.status_notice,
         "last_taken_discard": game.last_taken_discard,
         "last_discard_info": game.last_discard_info,
-        "event_banner": game.event_banner
+        "event_banner": game.event_banner,
+        "dice_event": game.dice_event
     }
     try:
         await ws.send_json(payload)
     except Exception:
         pass
 
-async def broadcast_multi():
-    """양쪽 플레이어 모두에게 상태를 전송한 뒤 1회성 배너 리셋"""
-    for p_num, ws in list(multi_connections.items()):
-        await send_state_to_ws(ws, multi_game, p_num)
-    multi_game.event_banner = None
+async def broadcast_room(max_p: int):
+    room = multi_rooms.get(max_p)
+    if not room: return
+    for p_num, ws in list(room["connections"].items()):
+        await send_state_to_ws(ws, room["game"], p_num)
+    room["game"].event_banner = None
+    room["game"].dice_event = None
 
 async def timer_background_task():
     while True:
         try:
             await asyncio.sleep(1)
-            # 2인 모드 타이머
-            if multi_game.game_started and multi_game.turn_phase in ["draw", "discard"] and multi_game.time_limit > 0:
-                multi_game.time_left -= 1
-                if multi_game.time_left <= 0:
-                    multi_game.handle_timeout()
-                await broadcast_multi()
+            for max_p, room in multi_rooms.items():
+                game = room["game"]
+                if game.game_started and game.turn_phase in ["draw", "discard"] and game.time_limit > 0:
+                    game.time_left -= 1
+                    if game.time_left <= 0:
+                        game.handle_timeout()
+                    await broadcast_room(max_p)
 
-            # 1인 모드 타이머
             for ws, s_game in list(single_sessions.items()):
                 if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
                     s_game.time_left -= 1
@@ -625,6 +658,7 @@ def get_index():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     current_mode = "none"
+    current_room_size = 2
     p_num = None
 
     await websocket.send_json({"mode": "none"})
@@ -644,30 +678,34 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_mode = "single"
                     p_num = 1
                     diff = data.get("diff", "high")
-                    s_game = GameSession(mode="single", ai_diff=diff)
+                    s_game = GameSession(mode="single", max_players=2, ai_diff=diff)
                     single_sessions[websocket] = s_game
                     await send_state_to_ws(websocket, s_game, 1)
-                elif chosen == "multi":
-                    current_mode = "multi"
+                elif chosen in ["multi_2", "multi_3", "multi_4"]:
+                    current_mode = chosen
+                    current_room_size = int(chosen.split("_")[1])
+                    room = multi_rooms[current_room_size]
+                    conns = room["connections"]
 
-                    # 유령 연결(Zombie Connection) 및 재접속 정리
-                    for p in [1, 2]:
-                        if p in multi_connections:
-                            ws_conn = multi_connections[p]
+                    for p in range(1, current_room_size + 1):
+                        if p in conns:
+                            ws_conn = conns[p]
                             if ws_conn.client_state != WebSocketState.CONNECTED or ws_conn == websocket:
-                                del multi_connections[p]
+                                del conns[p]
 
-                    # 빈자리 배정
-                    if 1 not in multi_connections:
-                        p_num = 1
-                    elif 2 not in multi_connections:
-                        p_num = 2
-                    else:
-                        await websocket.send_json({"type": "full", "msg": "2인 대전 방이 이미 가득 찼습니다."})
+                    assigned = None
+                    for p in range(1, current_room_size + 1):
+                        if p not in conns:
+                            assigned = p
+                            break
+
+                    if assigned is None:
+                        await websocket.send_json({"type": "full", "msg": f"{current_room_size}인 대전 방이 이미 가득 찼습니다."})
                         continue
 
-                    multi_connections[p_num] = websocket
-                    await broadcast_multi()
+                    p_num = assigned
+                    conns[p_num] = websocket
+                    await broadcast_room(current_room_size)
 
             elif act == "go_home":
                 if current_mode == "single":
@@ -676,23 +714,34 @@ async def websocket_endpoint(websocket: WebSocket):
                         if s_game.ai_task and not s_game.ai_task.done():
                             s_game.ai_task.cancel()
                         del single_sessions[websocket]
-                elif current_mode == "multi":
-                    for p in [1, 2]:
-                        if multi_connections.get(p) == websocket:
-                            del multi_connections[p]
-                    multi_game.game_started = False
-                    multi_game.scores = {1: 0, 2: 0}
-                    multi_game.ready = {1: False, 2: False}
-                    multi_game.reset_round()
-                    await broadcast_multi()
+                elif current_mode in ["multi_2", "multi_3", "multi_4"]:
+                    room = multi_rooms[current_room_size]
+                    conns = room["connections"]
+                    if p_num in conns:
+                        del conns[p_num]
+                    if len(conns) == 0:
+                        room["game"].game_started = False
+                        room["game"].scores = {p: 0 for p in range(1, current_room_size + 1)}
+                        room["game"].ready = {p: False for p in range(1, current_room_size + 1)}
+                        room["game"].reset_round()
+                    else:
+                        room["game"].status_notice = f"⚠️ {p_num}P 플레이어가 방을 나갔습니다."
+                    await broadcast_room(current_room_size)
 
                 current_mode = "none"
                 p_num = None
                 await websocket.send_json({"mode": "none"})
 
             else:
-                active_game = single_sessions.get(websocket) if current_mode == "single" else multi_game
-                curr_p = 1 if current_mode == "single" else p_num
+                if current_mode == "single":
+                    active_game = single_sessions.get(websocket)
+                    curr_p = 1
+                elif current_mode in ["multi_2", "multi_3", "multi_4"]:
+                    active_game = multi_rooms[current_room_size]["game"]
+                    curr_p = p_num
+                else:
+                    active_game = None
+                    curr_p = None
 
                 if not active_game or curr_p is None:
                     continue
@@ -723,33 +772,37 @@ async def websocket_endpoint(websocket: WebSocket):
                     if current_mode == "single":
                         active_game.ready[2] = True
                         active_game.game_started = True
+                        active_game.roll_starter_dice()
                         active_game.reset_round()
-                    elif active_game.ready[1] and active_game.ready[2]:
-                        active_game.game_started = True
-                        active_game.reset_round()
+                    else:
+                        all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
+                        if all_ready:
+                            active_game.game_started = True
+                            active_game.roll_starter_dice()
+                            active_game.reset_round()
                 elif act == "ready_next":
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
-                        active_game.game_started = True
                         active_game.reset_round()
-                    elif active_game.ready[1] and active_game.ready[2]:
-                        active_game.game_started = True
-                        active_game.reset_round()
+                    else:
+                        all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
+                        if all_ready:
+                            active_game.reset_round()
                 elif act == "reset_game":
-                    active_game.scores = {1: 0, 2: 0}
+                    active_game.scores = {p: 0 for p in range(1, active_game.max_players + 1)}
                     active_game.game_started = False
                     active_game.reset_round()
 
-                # 화면 동기화
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
                     active_game.event_banner = None
+                    active_game.dice_event = None
                     if active_game.game_started and active_game.current_turn == 2:
                         if active_game.ai_task is None or active_game.ai_task.done():
                             active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket))
                 else:
-                    await broadcast_multi()
+                    await broadcast_room(current_room_size)
 
     except WebSocketDisconnect:
         if websocket in single_sessions:
@@ -758,12 +811,18 @@ async def websocket_endpoint(websocket: WebSocket):
                 s_game.ai_task.cancel()
             del single_sessions[websocket]
 
-        for p in [1, 2]:
-            if multi_connections.get(p) == websocket:
-                del multi_connections[p]
-                multi_game.game_started = False
-                multi_game.scores = {1: 0, 2: 0}
-                multi_game.ready = {1: False, 2: False}
-                multi_game.reset_round()
-                await broadcast_multi()
-                break
+        if current_mode in ["multi_2", "multi_3", "multi_4"]:
+            room = multi_rooms[current_room_size]
+            conns = room["connections"]
+            for p in range(1, current_room_size + 1):
+                if conns.get(p) == websocket:
+                    del conns[p]
+                    break
+            if len(conns) == 0:
+                room["game"].game_started = False
+                room["game"].scores = {p: 0 for p in range(1, current_room_size + 1)}
+                room["game"].ready = {p: False for p in range(1, current_room_size + 1)}
+                room["game"].reset_round()
+            else:
+                room["game"].status_notice = f"⚠️ {p_num}P 플레이어의 연결이 끊어졌습니다."
+            await broadcast_room(current_room_size)
