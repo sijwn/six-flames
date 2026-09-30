@@ -11,7 +11,6 @@ def is_same_tile(t1, t2):
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
 def evaluate_fixed_hand(tiles, is_incidental=False):
-    """현재 위/아래 방향 그대로 판정하는 단일 검사 함수"""
     if len(tiles) != 6:
         return None
 
@@ -99,7 +98,7 @@ def evaluate_fixed_hand(tiles, is_incidental=False):
     return None
 
 def evaluate_hand(tiles, is_incidental=False):
-    """위/아래가 뒤집혀 있어도 자동으로 최적의 역을 탐색하여 판정"""
+    """위/아래 방향 64가지를 전수 검사하여 최선의 역 판정"""
     if len(tiles) != 6:
         return None
 
@@ -116,6 +115,8 @@ def evaluate_hand(tiles, is_incidental=False):
         if res:
             if best is None or res["total_score"] > best["total_score"]:
                 best = res
+                if best["total_score"] >= 8: # 최고점 역이면 조기 반환으로 연산 최적화
+                    break
     return best
 
 def check_incidental_win(hand_5, discards):
@@ -140,7 +141,7 @@ class GameSession:
         self.ready = {1: False, 2: False}
         self.game_started = False
         self.status_notice = None
-        self.ai_running = False
+        self.ai_task = None
         self.reset_round()
 
     def reset_round(self):
@@ -166,7 +167,9 @@ class GameSession:
         self.last_discard = None
         self.ready = {1: False, 2: False}
         self.status_notice = None
-        self.ai_running = False
+        if self.ai_task and not self.ai_task.done():
+            self.ai_task.cancel()
+        self.ai_task = None
         self.time_left = self.time_limit
 
         for _ in range(5):
@@ -402,13 +405,8 @@ class GameSession:
         return best_pot
 
     async def execute_ai_step(self, ws: WebSocket):
-        """0.3초의 자연스러운 텀을 두고 AI 의사결정을 수행"""
-        if self.ai_running or not self.game_started or self.current_turn != 2:
-            return
-
-        self.ai_running = True
+        """정확히 0.3초의 텀을 준 뒤 일괄 연산 및 즉시 턴 전환"""
         try:
-            # 유저의 패가 버려진 후 0.3초의 텀 부여
             await asyncio.sleep(0.3)
             if not self.game_started or self.current_turn != 2:
                 return
@@ -426,6 +424,7 @@ class GameSession:
                         riichi_pt = 1 if self.riichi[2] else 0
                         hand_total = base + stars + riichi_pt
 
+                        # 상대 점수가 0점이거나 내 점수보다 적으면 direct(직접 획득)
                         chosen_mode = "steal" if opp_score >= hand_total else "direct"
                         should_ron = True
                         if not self.riichi[2] and opp_score == 0 and hand_total <= 1 and len(self.deck) > 15:
@@ -519,10 +518,14 @@ class GameSession:
                 self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
                 riichi_txt = " (🔥리치 선언!)" if should_riichi else ""
                 self.status_notice = f"🤖 AI가 {draw_action_txt} [{chosen['top']}/{chosen['bottom']}]을(를) 버렸습니다.{riichi_txt}"
+                
+                # 유저 턴으로 넘어갔음을 즉시 클라이언트에 반영
                 await send_state_to_ws(ws, self, 1)
 
+        except asyncio.CancelledError:
+            pass
         finally:
-            self.ai_running = False
+            self.ai_task = None
 
 multi_game = GameSession(mode="multi")
 multi_connections = {}
@@ -583,28 +586,24 @@ async def broadcast_multi():
         await send_state_to_ws(ws, multi_game, p_num)
 
 async def timer_background_task():
-    """서버 타이머 루프: 매초마다 타이머를 독립적으로 카운트다운"""
+    """타이머 전용 루프: AI 동작을 간섭하지 않고 오직 1초씩 시간만 깎음"""
     while True:
         try:
             await asyncio.sleep(1)
-            # 2인 모드 타이머
+            # 2인 모드 시간 차감
             if multi_game.game_started and multi_game.turn_phase in ["draw", "discard"] and multi_game.time_limit > 0:
                 multi_game.time_left -= 1
                 if multi_game.time_left <= 0:
                     multi_game.handle_timeout()
                 await broadcast_multi()
 
-            # 1인 모드 타이머
+            # 1인 모드 시간 차감
             for ws, s_game in list(single_sessions.items()):
                 if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
                     s_game.time_left -= 1
                     if s_game.time_left <= 0:
                         s_game.handle_timeout()
                     await send_state_to_ws(ws, s_game, 1)
-
-                # AI 차례인데 아직 시작 전이면 별도 비동기 태스크로 가동
-                if s_game.game_started and s_game.current_turn == 2 and not s_game.ai_running:
-                    asyncio.create_task(s_game.execute_ai_step(ws))
 
         except Exception:
             pass
@@ -658,6 +657,9 @@ async def websocket_endpoint(websocket: WebSocket):
             elif act == "go_home":
                 if current_mode == "single":
                     if websocket in single_sessions:
+                        s_game = single_sessions[websocket]
+                        if s_game.ai_task and not s_game.ai_task.done():
+                            s_game.ai_task.cancel()
                         del single_sessions[websocket]
                 elif current_mode == "multi":
                     if p_num in multi_connections:
@@ -691,7 +693,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif act == "draw":
                     active_game.draw_tile(curr_p, discard_id=data.get("discard_id"))
                 elif act == "discard":
-                    # 유저의 패 버리기 처리
                     active_game.discard_tile(curr_p, data.get("tile_id"), data.get("riichi", False))
                 elif act == "tsumo":
                     active_game.declare_tsumo(curr_p)
@@ -720,17 +721,21 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.game_started = False
                     active_game.reset_round()
 
-                # 먼저 유저의 액션 결과를 즉각 클라이언트에 전송하여 화면을 갱신 (유저 패 5장 확인)
+                # 유저 액션 직후: 화면을 즉시 갱신해 유저 손패(5장 혹은 6장)를 바로 동기화
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
-                    # 유저가 버려서 AI 차례가 되었다면, 웹소켓 루프와 분리된 비동기 태스크로 0.3초 텀 후 실행
-                    if active_game.game_started and active_game.current_turn == 2 and not active_game.ai_running:
-                        asyncio.create_task(active_game.execute_ai_step(websocket))
+                    # 유저가 버려서 AI 차례(2P)가 되었을 때만 0.3초 텀 태스크 단 1개만 실행
+                    if active_game.game_started and active_game.current_turn == 2:
+                        if active_game.ai_task is None or active_game.ai_task.done():
+                            active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket))
                 else:
                     await broadcast_multi()
 
     except WebSocketDisconnect:
         if websocket in single_sessions:
+            s_game = single_sessions[websocket]
+            if s_game.ai_task and not s_game.ai_task.done():
+                s_game.ai_task.cancel()
             del single_sessions[websocket]
         if current_mode == "multi" and p_num in multi_connections:
             del multi_connections[p_num]
