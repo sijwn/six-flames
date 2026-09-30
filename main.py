@@ -432,6 +432,7 @@ class GameSession:
                             self.declare_ron(2, mode=chosen_mode)
                             self.status_notice = None
                             await send_state_to_ws(ws, self, 1)
+                            self.event_banner = None
                             return
 
                 picked_from_floor = False
@@ -466,6 +467,7 @@ class GameSession:
                     self.declare_tsumo(2)
                     self.status_notice = None
                     await send_state_to_ws(ws, self, 1)
+                    self.event_banner = None
                     return
 
                 hand = self.players[2]
@@ -474,6 +476,7 @@ class GameSession:
                     self.discard_tile(2, chosen["id"], declare_riichi=False)
                     self.status_notice = f"🤖 AI가 {draw_action_txt} [{chosen['top']}/{chosen['bottom']}]을(를) 버렸습니다."
                     await send_state_to_ws(ws, self, 1)
+                    self.event_banner = None
                     return
 
                 if self.ai_diff == "low":
@@ -501,6 +504,7 @@ class GameSession:
                 self.status_notice = f"🤖 AI가 {draw_action_txt} [{chosen['top']}/{chosen['bottom']}]을(를) 버렸습니다.{riichi_txt}"
 
                 await send_state_to_ws(ws, self, 1)
+                self.event_banner = None
 
         except asyncio.CancelledError:
             pass
@@ -527,7 +531,6 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
     show_all = (game.turn_phase in ["round_end", "game_over"])
 
-    # 2인 모드 시 상대방 접속 여부 판정
     opp_connected = True
     if game.mode == "multi":
         opp_connected = (opp_num in multi_connections)
@@ -548,8 +551,8 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         "my_hand": my_hand,
         "opp_hand_count": len(opp_hand),
         "opp_hand": opp_hand if show_all else None,
-        "opp_connected": opp_connected, # 상대방 실시간 접속 여부
-        "multi_player_count": len(multi_connections), # 2인 방 접속 인원 수
+        "opp_connected": opp_connected,
+        "multi_player_count": len(multi_connections),
         "discards": game.discards,
         "scores": game.scores,
         "riichi": game.riichi,
@@ -568,15 +571,16 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         "last_discard_info": game.last_discard_info,
         "event_banner": game.event_banner
     }
-    game.event_banner = None
     try:
         await ws.send_json(payload)
     except Exception:
         pass
 
 async def broadcast_multi():
+    """양쪽 플레이어 모두에게 상태(이벤트 포함)를 보낸 뒤 배너를 리셋함"""
     for p_num, ws in list(multi_connections.items()):
         await send_state_to_ws(ws, multi_game, p_num)
+    multi_game.event_banner = None
 
 async def timer_background_task():
     while True:
@@ -719,8 +723,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.game_started = False
                     active_game.reset_round()
 
+                # 화면 동기화
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
+                    active_game.event_banner = None
                     if active_game.game_started and active_game.current_turn == 2:
                         if active_game.ai_task is None or active_game.ai_task.done():
                             active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket))
