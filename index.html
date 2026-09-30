@@ -351,7 +351,6 @@
         </div>
       </div>
 
-      <!-- 접기/열기 가능한 역 일람표 -->
       <div class="yaku-guide-wrap">
         <div class="yaku-header" onclick="toggleYakuGuide()">
           <h3>📜 <span id="guide-level-label">4단계 전체</span> 역(족보) 일람 안내</h3>
@@ -617,7 +616,7 @@
           return;
         }
 
-        // 인게임 제어
+        // 인게임 화면
         document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'none';
         document.getElementById('game-panel').style.display = 'block';
@@ -626,6 +625,10 @@
           riichiPending = false;
           document.getElementById('btn-riichi').style.outline = 'none';
         }
+
+        // 목표 점수 갱신
+        const targetTxt = document.getElementById('target-score-txt');
+        if (targetTxt) targetTxt.innerText = data.target_score;
 
         // 다인용 스코어보드 렌더링
         const dynScoreboard = document.getElementById('dynamic-scoreboard');
@@ -652,7 +655,7 @@
           `;
         }
 
-        // 타이머 박스 제어 (안전 참조)
+        // 타이머 박스 제어
         const timerBox = document.getElementById('timer-box');
         if (timerBox) {
           if (data.mode === 'single') {
@@ -716,7 +719,7 @@
         const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
         document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
 
-        // 상태바 텍스트 갱신 (에러 방지 및 명확한 상태 표기)
+        // 상태바 텍스트
         if (data.status_notice) {
           document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-size:15px; font-weight:bold;">${data.status_notice}</span>`;
         } else if (data.show_all) {
@@ -898,17 +901,19 @@
         diceEl.innerText = `${currentShow}P`;
       }, 70);
 
+      // 0.9초 굴림 + 0.9초 당첨 표시 후 모달 닫힘 (총 1.8초)
       setTimeout(() => {
         clearInterval(diceSpinInterval);
         diceEl.className = 'player-dice winner-pulse';
+        const pLabel = (lastSelectedMode === 'single' && diceEv.starter === 2) ? 'AI(2P)' : `${diceEv.starter}P`;
         diceEl.innerText = `${diceEv.starter}P`;
-        resTxt.innerHTML = `선공 당첨: <strong style="color:#facc15; font-size:18px;">[${diceEv.starter}P] 선공 확정!</strong>`;
+        resTxt.innerHTML = `선공 당첨: <strong style="color:#facc15; font-size:18px;">[${pLabel}] 선공 확정!</strong>`;
 
         setTimeout(() => {
           modal.style.display = 'none';
           diceEl.className = 'player-dice';
-        }, 1200);
-      }, 1000);
+        }, 900);
+      }, 900);
     }
 
     function triggerActionBoxModal(banner) {
