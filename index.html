@@ -16,7 +16,7 @@
       overflow-x: hidden;
     }
     .container {
-      max-width: 900px; margin: 0 auto; background: #131d31; border-radius: 12px;
+      max-width: 920px; margin: 0 auto; background: #131d31; border-radius: 12px;
       padding: 8px 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); position: relative;
     }
     
@@ -31,9 +31,9 @@
       text-align: center; z-index: 999999; pointer-events: none; display: none;
       box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95);
     }
-    #action-box-modal.box-riichi { background: #1a0508; border: 3px solid #ef4444; color: #fee2e2; }
-    #action-box-modal.box-tsumo { background: #02182b; border: 3px solid #38bdf8; color: #e0f2fe; }
-    #action-box-modal.box-ron { background: #012b1e; border: 3px solid #10b981; color: #d1fae5; }
+    #action-box-modal.box-riichi { background: #1a0508; border: 3.5px solid #ef4444; color: #fee2e2; }
+    #action-box-modal.box-tsumo { background: #02182b; border: 3.5px solid #38bdf8; color: #e0f2fe; }
+    #action-box-modal.box-ron { background: #012b1e; border: 3.5px solid #10b981; color: #d1fae5; }
 
     .anim-riichi-fade { animation: modalFadeRiichi 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     @keyframes modalFadeRiichi {
@@ -55,7 +55,7 @@
     .modal-box-yaku { font-size: 24px; font-weight: 900; margin: 4px 0; color: #facc15; }
     .modal-box-sub { font-size: 12px; opacity: 0.9; margin-top: 4px; font-weight: bold; }
 
-    /* 플레이어 주사위 롤링 모달 */
+    /* 플레이어 주사위 롤링 모달 창 */
     #dice-modal {
       position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
       background: #090d16; border: 3px solid #38bdf8; border-radius: 16px;
@@ -85,7 +85,7 @@
       to { transform: scale(1.1); box-shadow: 0 0 25px #34d399; }
     }
 
-    /* 콤팩트 스코어 바 */
+    /* 상단 스코어 바 */
     .scoreboard { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; background: #090e1a; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; gap: 4px; }
     .score-box { text-align: center; padding: 3px 6px; border-radius: 6px; transition: all 0.3s; flex: 1; min-width: 60px; }
     .player-label { font-size: 11px; font-weight: bold; color: #94a3b8; }
@@ -107,48 +107,72 @@
     .conn-offline { background: #881337; color: #fecdd3; }
 
     /* ========================================================= */
-    /* 마작 사각 작탁 레이아웃 (정돈 및 침범 방지)                */
+    /* 인원수별 맞춤형 마작 작탁 레이아웃                        */
     /* ========================================================= */
     .mahjong-table {
-      position: relative; width: 100%; min-height: 420px;
+      position: relative; width: 100%; min-height: 410px;
       background: radial-gradient(circle at center, #1b283d 0%, #0d1524 100%);
       border: 2px solid #23354d; border-radius: 12px;
       display: grid;
-      grid-template-rows: auto 1fr auto;
-      grid-template-columns: 90px 1fr 90px;
-      padding: 6px; gap: 4px; margin-bottom: 6px;
+      padding: 6px; gap: 6px; margin-bottom: 6px;
     }
 
+    /* 2인 전용 작탁: 좌/우 없이 상/중앙/하 꽉 찬 레이아웃 */
+    .mahjong-table.table-p2 {
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 1fr;
+    }
+    .mahjong-table.table-p2 .table-top { grid-column: 1; grid-row: 1; }
+    .mahjong-table.table-p2 .table-center { grid-column: 1; grid-row: 2; }
+    .mahjong-table.table-p2 .table-bottom { grid-column: 1; grid-row: 3; }
+    .mahjong-table.table-p2 .table-left,
+    .mahjong-table.table-p2 .table-right { display: none !important; }
+
+    /* 3인/4인 전용 작탁: 80px 좌/우 분할 레이아웃 */
+    .mahjong-table.table-p3,
+    .mahjong-table.table-p4 {
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 78px 1fr 78px;
+    }
+    .mahjong-table.table-p3 .table-top,
+    .mahjong-table.table-p4 .table-top { grid-column: 1 / 4; grid-row: 1; }
+    .mahjong-table.table-p3 .table-left,
+    .mahjong-table.table-p4 .table-left { grid-column: 1; grid-row: 2; }
+    .mahjong-table.table-p3 .table-center,
+    .mahjong-table.table-p4 .table-center { grid-column: 2; grid-row: 2; }
+    .mahjong-table.table-p3 .table-right,
+    .mahjong-table.table-p4 .table-right { grid-column: 3; grid-row: 2; }
+    .mahjong-table.table-p3 .table-bottom,
+    .mahjong-table.table-p4 .table-bottom { grid-column: 1 / 4; grid-row: 3; }
+
     .table-top {
-      grid-column: 1 / 4; grid-row: 1;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-height: 52px; padding: 2px 0;
+      min-height: 54px; z-index: 2;
     }
     .table-left {
-      grid-column: 1; grid-row: 2;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 0 2px;
+      width: 78px; z-index: 2;
     }
     .table-right {
-      grid-column: 3; grid-row: 2;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 0 2px;
+      width: 78px; z-index: 2;
     }
+    /* 중앙 바닥패 풀: 스크롤바 영구 차단 (스크롤 없이 넉넉하게 줄바꿈) */
     .table-center {
-      grid-column: 2; grid-row: 2;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       background: rgba(11, 18, 32, 0.7); border: 1px dashed #334155; border-radius: 10px;
-      padding: 6px; position: relative; min-height: 160px;
+      padding: 6px; position: relative; min-height: 190px; z-index: 1;
+      overflow: hidden; /* 스크롤바 제거 */
     }
     .table-bottom {
-      grid-column: 1 / 4; grid-row: 3;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       background: rgba(15, 23, 42, 0.85); border-radius: 10px; padding: 4px; border: 1px solid #1e293b;
+      min-height: 76px; z-index: 2;
     }
 
     .table-player-tag { font-size: 11px; font-weight: bold; color: #94a3b8; margin-bottom: 2px; }
 
-    /* 타일 기본 스타일 */
+    /* 일반 세로형 도미노 타일 */
     .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
     .tile-wrap { position: relative; display: inline-block; padding-top: 13px; }
     .tile {
@@ -165,36 +189,29 @@
 
     .tile-half { font-weight: 900; font-size: 15px; height: 26px; display: flex; align-items: center; justify-content: center; }
     .tile-divider { height: 1px; background: #cbd5e1; position: relative; }
-    .star-mark { position: absolute; top: -6px; left: calc(50% - 5px); font-size: 8px; color: #ef4444; background: #fafafa; border-radius: 50%; line-height: 10px; width: 10px; text-align: center; }
+    .star-mark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 9px; color: #ef4444; background: #fafafa; border-radius: 50%; line-height: 11px; width: 11px; text-align: center; }
 
-    /* ========================================================= */
-    /* 좌/우측 플레이어 전용 가로형 눕힌 도미노 타일             */
-    /* ========================================================= */
-    .tile-horizontal {
-      display: inline-flex; flex-direction: row; justify-content: space-between; align-items: center;
-      width: 50px; height: 26px; background: #fafafa; border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.5); border: 1px solid #cbd5e1;
-      margin: 2px 0; user-select: none;
+    /* 좌/우측 플레이어 전용 가로 눕힘 타일 (.tile-h) */
+    .tile-h {
+      display: inline-flex !important; flex-direction: row !important;
+      justify-content: space-between !important;
+      width: 52px !important; height: 26px !important;
+      background: #fafafa; border-radius: 4px;
+      margin: 2px 0; border: 1px solid #cbd5e1;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      user-select: none;
     }
-    .tile-horizontal .h-half {
-      width: 24px; height: 100%; display: flex; align-items: center; justify-content: center;
-      font-weight: 900; font-size: 14px;
+    .tile-h-half {
+      width: 25px; height: 24px; font-weight: 900; font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
     }
-    .tile-horizontal .h-divider {
+    .tile-h-divider {
       width: 1px; height: 100%; background: #cbd5e1; position: relative;
     }
-    .tile-horizontal .h-star {
-      position: absolute; top: calc(50% - 5px); left: -5px; font-size: 8px; color: #ef4444;
-      background: #fafafa; border-radius: 50%; line-height: 10px; width: 10px; text-align: center;
-    }
-
-    /* 상대방 미니 비공개 뒷면 패 */
-    .tile-mini-back {
-      background: #1e293b; border: 1px dashed #475569;
-      width: 24px; height: 38px; border-radius: 3px;
-    }
-    .tile-mini-back.side {
-      width: 44px; height: 18px; margin: 2px 0; border-radius: 3px;
+    .tile-h-star {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 9px; height: 9px; font-size: 8px; color: #ef4444;
+      background: #fafafa; border-radius: 50%; line-height: 9px; text-align: center;
     }
 
     .tile-ctrl-btn {
@@ -209,6 +226,14 @@
 
     .num-1 { color: var(--c1); } .num-2 { color: var(--c2); } .num-3 { color: var(--c3); }
     .num-4 { color: var(--c4); } .num-5 { color: var(--c5); } .num-6 { color: var(--c6); }
+    
+    .tile-mini-back {
+      background: #1e293b; border: 1px dashed #475569;
+      width: 22px; height: 34px; border-radius: 3px;
+    }
+    .tile-mini-back.side {
+      width: 44px; height: 20px; margin: 2px 0;
+    }
 
     .action-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 6px 0; }
     button { background: #2563eb; color: white; border: none; padding: 7px 14px; font-size: 13px; font-weight: bold; border-radius: 6px; cursor: pointer; }
@@ -217,19 +242,21 @@
     button.btn-ron { background: #d97706; }
     button.btn-riichi { background: #dc2626; }
 
-    .yaku-badge { background: #059669; color: white; padding: 3px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; display: inline-block; margin-bottom: 4px; }
+    .yaku-badge { background: #059669; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; display: inline-block; }
+    
+    /* 버림패 목록: 스크롤바 영구 차단 */
     .discards-box {
-      border-radius: 6px; padding: 4px; max-height: 110px; overflow-y: auto;
+      border-radius: 6px; padding: 4px;
       display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-content: flex-start;
-      width: 100%;
+      width: 100%; overflow: hidden; /* 스크롤바 삭제 */
     }
-    .discards-box .tile { width: 30px; height: 50px; }
-    .discards-box .tile-half { font-size: 13px; height: 22px; }
+    .discards-box .tile { width: 28px; height: 46px; }
+    .discards-box .tile-half { font-size: 12px; height: 20px; }
 
     .taken-notice-badge { background: #854d0e; color: #fef08a; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
     .discard-notice-badge { background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
 
-    /* 라운드 종료 오버레이 모달 (작탁 중앙 고정) */
+    /* 라운드 종료 오버레이 모달 */
     #round-settlement-modal {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       background: rgba(9, 14, 26, 0.96); border: 2px solid #facc15; border-radius: 12px;
@@ -238,6 +265,7 @@
     }
     .settlement-card { background: #131d31; border-left: 4px solid #38bdf8; border-radius: 4px; padding: 6px 10px; margin: 4px 0; text-align: left; font-size: 12px; }
 
+    /* 족보 일람 안내 */
     .yaku-guide-wrap { margin-top: 14px; background: #090e1a; border-radius: 10px; padding: 12px; border: 1px solid #1e293b; }
     .yaku-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
     .yaku-header h3 { margin: 0; color: #38bdf8; font-size: 13px; }
@@ -248,18 +276,23 @@
     .yaku-title { font-size: 12px; font-weight: bold; color: #facc15; display: flex; justify-content: space-between; margin-bottom: 4px; }
     .yaku-desc { color: #cbd5e1; font-size: 10px; line-height: 1.3; margin-bottom: 6px; }
 
+    /* 족보 그래픽 예시 (별 중앙 정렬 완벽 보정) */
     .visual-example {
       display: flex; align-items: center; justify-content: center;
-      background: #090d16; padding: 4px; border-radius: 4px; gap: 3px; overflow-x: auto;
+      background: #090d16; padding: 6px; border-radius: 4px; gap: 3px; overflow-x: auto;
     }
     .m-tile {
-      display: inline-flex; flex-direction: column; width: 19px; height: 32px;
-      background: #fafafa; border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.5);
-      font-weight: bold; text-align: center; flex-shrink: 0;
+      display: inline-flex; flex-direction: column; width: 22px; height: 38px;
+      background: #fafafa; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      font-weight: bold; text-align: center; flex-shrink: 0; border: 1px solid #cbd5e1;
     }
-    .m-half { height: 14px; display: flex; align-items: center; justify-content: center; font-size: 9px; line-height: 1; }
-    .m-divider { height: 1px; background: #94a3b8; position: relative; }
-    .m-star { position: absolute; top: -3px; left: calc(50% - 3px); width: 6px; height: 6px; color: #ef4444; background: #fafafa; border-radius: 50%; line-height: 6px; text-align: center; }
+    .m-half { height: 18px; display: flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; }
+    .m-divider { height: 1px; background: #94a3b8; position: relative; width: 100%; }
+    .m-star {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 9px; height: 9px; font-size: 7px; color: #ef4444; background: #fafafa;
+      border-radius: 50%; line-height: 9px; text-align: center; border: 0.5px solid #cbd5e1;
+    }
 
     .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 18px 0; }
     .mode-btn-card {
@@ -270,14 +303,12 @@
   </style>
 </head>
 <body>
-  <!-- 화면 중앙 알림 모달 -->
   <div id="action-box-modal">
     <div class="modal-box-title" id="box-title"></div>
     <div class="modal-box-yaku" id="box-yaku"></div>
     <div class="modal-box-sub" id="box-sub"></div>
   </div>
 
-  <!-- 선공 주사위 모달 -->
   <div id="dice-modal">
     <h3 style="margin: 0 0 6px 0; color: #facc15; font-size: 16px;">🎲 선공 결정 주사위!</h3>
     <div class="dice-wrap">
@@ -376,41 +407,39 @@
       <div id="lobby-status" style="margin-top:8px; font-size:11px; color:#cbd5e1;"></div>
     </div>
 
-    <!-- 3. 인게임 화면 (마작 작탁 레이아웃) -->
+    <!-- 3. 인게임 화면 (가변형 마작 작탁) -->
     <div id="game-panel" style="display:none;">
-      
       <div class="scoreboard" id="dynamic-scoreboard"></div>
       <div id="status-bar" style="text-align:center; font-weight:bold; margin: 4px 0; min-height: 18px; font-size: 13px;">게임 준비 완료</div>
 
-      <div class="mahjong-table" id="mahjong-table">
+      <!-- 인원수에 따라 클래스 가변 (.table-p2, .table-p3, .table-p4) -->
+      <div class="mahjong-table table-p2" id="mahjong-table">
         
         <!-- 테이블 상단 플레이어 -->
         <div class="table-top" id="slot-top"></div>
 
-        <!-- 테이블 좌측 플레이어 (눕힌 도미노) -->
+        <!-- 테이블 좌측 플레이어 (3인/4인 시 노출) -->
         <div class="table-left" id="slot-left"></div>
 
-        <!-- 중앙 버림패 (바닥패) 영역 -->
+        <!-- 중앙 버림패 (바닥패) 영역 (스크롤바 영구 차단) -->
         <div class="table-center">
-          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; position: absolute; top: 4px; left: 0; padding: 0 8px;">
-            <!-- 왼쪽 상단: 바닥패 정보 및 주워간 패 -->
+          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; position: absolute; top: 5px; left: 0; padding: 0 8px;">
             <span style="font-size: 11px; color: #94a3b8; font-weight: bold;">
               버린 패 (바닥)
               <span id="last-taken-badge" class="taken-notice-badge" style="display:none;"></span>
               <span id="last-discard-badge" class="discard-notice-badge" style="display:none;"></span>
             </span>
-            <!-- 오른쪽 상단: 패산 개수 -->
             <span style="font-size: 11px; color:#cbd5e1; font-weight: bold;">패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
           </div>
-          <div class="discards-box" id="discards" style="margin-top: 18px;"></div>
+          <div class="discards-box" id="discards" style="margin-top: 24px;"></div>
         </div>
 
-        <!-- 테이블 우측 플레이어 (눕힌 도미노) -->
+        <!-- 테이블 우측 플레이어 (3인/4인 시 노출) -->
         <div class="table-right" id="slot-right"></div>
 
         <!-- 테이블 하단 (나) -->
         <div class="table-bottom">
-          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; padding: 0 4px;">
+          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; padding: 0 4px; margin-bottom: 2px;">
             <div id="yaku-badge" class="yaku-badge" style="display:none;"></div>
             <span style="font-size: 10px; color:#94a3b8;" id="my-slot-title">내 손패</span>
             <div class="timer-badge" id="timer-box" style="display:none;">⏱ <span id="timer-val">60</span>s</div>
@@ -421,7 +450,7 @@
         <!-- 라운드 정산 중앙 오버레이 모달 -->
         <div id="round-settlement-modal">
           <h3 id="panel-title" style="margin:0 0 8px 0; color:#facc15; font-size: 15px;">🏆 라운드 종료 (점수 정산)</h3>
-          <div id="settlement-list" style="margin-bottom: 10px; max-height: 140px; overflow-y: auto;"></div>
+          <div id="settlement-list" style="margin-bottom: 12px; max-height: 150px; overflow-y: auto;"></div>
           <div style="text-align:center;">
             <button id="btn-ready" onclick="actionNextStep()" style="background:#059669; font-size: 14px; padding: 8px 24px; box-shadow: 0 0 10px rgba(5,150,105,0.6);">다음 판 준비</button>
             <div id="ready-status" style="font-size: 11px; color: #94a3b8; margin-top: 4px;"></div>
@@ -434,21 +463,17 @@
       <div class="action-panel">
         <button id="btn-draw" onclick="actionDraw(null)" disabled>패 뽑기</button>
         <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
-        
-        <!-- 내 턴 완성 (쯔모) -->
         <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성 (쯔모)!</button>
         
-        <!-- 내 턴일 때 바닥 버림패로 완성 가능한 경우: 론 vs 완성 선택 버튼 -->
         <div id="my-turn-ron-box" style="display:none; gap:6px;">
           <button class="btn-ron" onclick="actionRon('steal')">론 (상대 강탈)</button>
           <button class="btn-win" onclick="actionRon('direct')">완성 (공급처)</button>
         </div>
 
-        <!-- 타인 턴 인터럽트 론 버튼 -->
         <button id="btn-ron-interrupt" class="btn-ron" onclick="actionRon('steal')" style="display:none; animation: pulse 0.7s infinite alternate;">론 (강탈 완성)!</button>
       </div>
 
-      <!-- 족보 안내창 -->
+      <!-- 족보 일람표 안내 (별 위치 정밀 교정) -->
       <div class="yaku-guide-wrap">
         <div class="yaku-header" onclick="toggleYakuGuide()">
           <h3>📜 <span id="guide-level-label">4단계 전체</span> 역(족보) 일람 안내</h3>
@@ -702,10 +727,14 @@
           return;
         }
 
-        // 인게임 화면
+        // 인게임 화면 활성화
         document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'none';
         document.getElementById('game-panel').style.display = 'block';
+
+        // 작탁 레이아웃 클래스 인원수에 맞춰 가변 적용 (.table-p2, .table-p3, .table-p4)
+        const tableEl = document.getElementById('mahjong-table');
+        tableEl.className = `mahjong-table table-p${data.max_players}`;
 
         if (currentPhase === 'draw' && !myRiichiActive) {
           riichiPending = false;
@@ -749,7 +778,9 @@
           }
         }
 
-        // 마작 4방위 작탁 슬롯 렌더링 (가로 눕힘 완벽 적용)
+        // =========================================================
+        // 작탁 슬롯 렌더링
+        // =========================================================
         const slotTop = document.getElementById('slot-top');
         const slotLeft = document.getElementById('slot-left');
         const slotRight = document.getElementById('slot-right');
@@ -776,7 +807,7 @@
           renderOppSlot(slotLeft, leftP, data, 'vertical');
         }
 
-        // 패산 개수 갱신 (우측 상단)
+        // 패산 개수 갱신
         document.getElementById('deck-count').innerText = data.deck_count;
 
         // 중앙 버림패 렌더링
@@ -792,7 +823,7 @@
           discardsDiv.appendChild(tileEl);
         });
 
-        // 좌측 상단 버림패 정보 및 주워간 패 표시 (타일 번호 포함)
+        // 좌측 상단 버림패 정보 배지
         const takenBadge = document.getElementById('last-taken-badge');
         if (data.last_taken_discard) {
           const byWhom = (data.last_taken_discard.by === myPlayer) ? '내가' : `${data.last_taken_discard.by}P가`;
@@ -880,7 +911,7 @@
           document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
         }
 
-        // 패 뽑기 버튼 (패산이 0장이고 바닥패가 있으면 뽑기 버튼 비활성화)
+        // 패 뽑기 버튼 (패산 0장이면 비활성화)
         document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw' && data.deck_count > 0);
 
         // 리치 버튼
@@ -902,7 +933,7 @@
         // 쯔모 완성 버튼
         document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
 
-        // 론 버튼: 내 턴이면 론(강탈) vs 완성(공급처) 2개 선택창 노출, 남의 턴이면 인터럽트 론만 노출
+        // 내 턴 론/완성 선택 박스 vs 타인 턴 인터럽트 론 버튼
         const myTurnRonBox = document.getElementById('my-turn-ron-box');
         const btnRonInterrupt = document.getElementById('btn-ron-interrupt');
         
@@ -927,7 +958,7 @@
           yakuBadge.style.display = 'none';
         }
 
-        // 라운드 정산 중앙 오버레이 모달 (화면 중앙 모달로 항상 노출 보장)
+        // 라운드 정산 중앙 오버레이 모달 제어
         const roundModal = document.getElementById('round-settlement-modal');
         if (data.show_all) {
           roundModal.style.display = 'block';
@@ -968,8 +999,9 @@
       };
     }
 
-    // 마작 테이블 슬롯 렌더링 함수 (좌/우측 패 가로 눕힘 전용 규격 적용)
+    // 마작 테이블 슬롯에 상대방 손패 렌더링
     function renderOppSlot(container, pNum, data, orientation) {
+      container.innerHTML = '';
       if (!pNum || !data.opp_hands[pNum]) return;
       const oppData = data.opp_hands[pNum];
       const pTitle = (data.mode === 'single') ? 'AI(2P)' : `${pNum}P`;
@@ -984,20 +1016,20 @@
       handsDiv.style.flexDirection = (orientation === 'vertical') ? 'column' : 'row';
       handsDiv.style.gap = '2px';
       handsDiv.style.alignItems = 'center';
+      handsDiv.style.justifyContent = 'center';
 
       if (data.show_all && oppData.tiles) {
         oppData.tiles.forEach(t => {
           if (orientation === 'vertical') {
-            // 좌/우측 전용 가로형 도미노 렌더링
-            const hTile = document.createElement('div');
-            hTile.className = 'tile-horizontal';
-            const starHtml = t.is_double ? '<span class="h-star">★</span>' : '';
-            hTile.innerHTML = `
-              <div class="h-half num-${t.top}">${t.top}</div>
-              <div class="h-divider">${starHtml}</div>
-              <div class="h-half num-${t.bottom}">${t.bottom}</div>
+            const el = document.createElement('div');
+            el.className = 'tile-h';
+            const starHtml = t.is_double ? '<span class="tile-h-star">★</span>' : '';
+            el.innerHTML = `
+              <div class="tile-h-half num-${t.top}">${t.top}</div>
+              <div class="tile-h-divider">${starHtml}</div>
+              <div class="tile-h-half num-${t.bottom}">${t.bottom}</div>
             `;
-            handsDiv.appendChild(hTile);
+            handsDiv.appendChild(el);
           } else {
             handsDiv.appendChild(createTileEl(t, false, false, false, false));
           }
