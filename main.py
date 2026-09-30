@@ -138,7 +138,7 @@ class GameSession:
         self.game_started = False
         self.status_notice = None
         self.last_taken_discard = None
-        self.last_discard_info = None  # 최근 버려진 패 정보 {by: 1|2, tile: t}
+        self.last_discard_info = None
         self.ai_task = None
         self.event_banner = None
         self.reset_round()
@@ -527,6 +527,11 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
     show_all = (game.turn_phase in ["round_end", "game_over"])
 
+    # 2인 모드 시 상대방 접속 여부 판정
+    opp_connected = True
+    if game.mode == "multi":
+        opp_connected = (opp_num in multi_connections)
+
     payload = {
         "mode": game.mode,
         "ai_diff": game.ai_diff,
@@ -543,6 +548,8 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         "my_hand": my_hand,
         "opp_hand_count": len(opp_hand),
         "opp_hand": opp_hand if show_all else None,
+        "opp_connected": opp_connected, # 상대방 실시간 접속 여부
+        "multi_player_count": len(multi_connections), # 2인 방 접속 인원 수
         "discards": game.discards,
         "scores": game.scores,
         "riichi": game.riichi,
