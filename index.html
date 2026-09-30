@@ -48,24 +48,35 @@
     .modal-box-yaku { font-size: 28px; font-weight: 900; margin: 6px 0; color: #ffffff; }
     .modal-box-sub { font-size: 14px; opacity: 0.95; margin-top: 6px; font-weight: bold; }
 
-    /* 주사위 굴림 모달 창 */
+    /* 플레이어 주사위 롤링 모달 창 */
     #dice-modal {
       position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
-      background: #090d16; border: 3px solid #facc15; border-radius: 18px;
-      padding: 24px 32px; text-align: center; z-index: 1000000; display: none;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.9), 0 0 30px rgba(250, 204, 21, 0.4);
+      background: #090d16; border: 3.5px solid #38bdf8; border-radius: 20px;
+      padding: 26px 36px; text-align: center; z-index: 1000000; display: none;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.9), 0 0 35px rgba(56, 189, 248, 0.5);
     }
-    .dice-wrap { display: flex; justify-content: center; gap: 20px; margin: 16px 0; }
-    .dice {
-      width: 54px; height: 54px; background: #fff; border-radius: 10px;
-      color: #0f172a; font-size: 32px; font-weight: 900; display: flex;
-      align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    .dice-wrap { display: flex; justify-content: center; margin: 18px 0; }
+    .player-dice {
+      width: 80px; height: 80px; background: linear-gradient(135deg, #2563eb, #1e3a8a);
+      border: 3px solid #60a5fa; border-radius: 16px; color: #ffffff; font-size: 32px;
+      font-weight: 900; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6), inset 0 0 10px rgba(255,255,255,0.4);
+      letter-spacing: -1px; text-shadow: 0 0 8px rgba(255,255,255,0.7);
     }
-    .rolling { animation: diceRoll 0.15s infinite; }
-    @keyframes diceRoll {
-      0% { transform: rotate(0deg) scale(0.9); }
-      50% { transform: rotate(180deg) scale(1.1); }
-      100% { transform: rotate(360deg) scale(0.9); }
+    .rolling-spin { animation: diceSpin 0.12s infinite; }
+    @keyframes diceSpin {
+      0% { transform: rotate(0deg) scale(0.92); }
+      50% { transform: rotate(180deg) scale(1.08); }
+      100% { transform: rotate(360deg) scale(0.92); }
+    }
+    .winner-pulse {
+      background: linear-gradient(135deg, #10b981, #065f46) !important;
+      border-color: #34d399 !important;
+      animation: pulseWin 0.6s infinite alternate;
+    }
+    @keyframes pulseWin {
+      from { transform: scale(1.0); box-shadow: 0 0 15px #34d399; }
+      to { transform: scale(1.15); box-shadow: 0 0 30px #34d399; }
     }
 
     /* 다인용 반응형 스코어보드 */
@@ -189,14 +200,13 @@
     <div class="modal-box-sub" id="box-sub"></div>
   </div>
 
-  <!-- 시작 시 주사위 롤링 모달 -->
+  <!-- 플레이어 면 주사위 롤링 모달 -->
   <div id="dice-modal">
-    <h3 style="margin: 0 0 10px 0; color: #facc15; font-size: 20px;">🎲 선공 결정 주사위!</h3>
+    <h3 style="margin: 0 0 10px 0; color: #facc15; font-size: 19px;">🎲 선공 결정 주사위!</h3>
     <div class="dice-wrap">
-      <div class="dice rolling" id="dice-1">?</div>
-      <div class="dice rolling" id="dice-2">?</div>
+      <div class="player-dice rolling-spin" id="player-dice-face">1P</div>
     </div>
-    <div id="dice-result-text" style="font-size: 15px; font-weight: bold; color: #38bdf8; min-height: 24px;">주사위를 굴리는 중...</div>
+    <div id="dice-result-text" style="font-size: 15px; font-weight: bold; color: #38bdf8; min-height: 24px;">주사위를 힘차게 굴립니다...</div>
   </div>
 
   <div class="container">
@@ -377,7 +387,7 @@
 
           <div class="yaku-card" data-level="3">
             <div class="yaku-title"><span>무쌍 (3단계)</span> <span>9점 (3+★6)</span></div>
-            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤[cite: 4]</div>
+            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -390,7 +400,7 @@
 
           <div class="yaku-card" data-level="2">
             <div class="yaku-title"><span>휘광 (2단계)</span> <span>5점 (보너스 무시)</span></div>
-            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성[cite: 4]</div>
+            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -403,7 +413,7 @@
 
           <div class="yaku-card" data-level="2">
             <div class="yaku-title"><span>삼동 (2단계)</span> <span>5점 + ★보너스</span></div>
-            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성[cite: 4]</div>
+            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
@@ -418,7 +428,7 @@
 
           <div class="yaku-card" data-level="2">
             <div class="yaku-title"><span>삼색 (2단계)</span> <span>3점 (겸사겸사 전용)</span></div>
-            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)[cite: 4]</div>
+            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
@@ -431,7 +441,7 @@
 
           <div class="yaku-card" data-level="1">
             <div class="yaku-title"><span>육화 (1단계)</span> <span>6점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속[cite: 4]</div>
+            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
@@ -445,7 +455,7 @@
 
           <div class="yaku-card" data-level="1">
             <div class="yaku-title"><span>삼연 (1단계)</span> <span>3점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌[cite: 4]</div>
+            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
@@ -459,7 +469,7 @@
 
           <div class="yaku-card" data-level="1">
             <div class="yaku-title"><span>일색 (1단계)</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)[cite: 4]</div>
+            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
@@ -473,8 +483,8 @@
           <div class="yaku-card" data-level="1" style="border-color:#38bdf8;">
             <div class="yaku-title"><span style="color:#38bdf8;">★ 보너스 및 단계별 특수 룰</span></div>
             <div class="yaku-desc" id="guide-bonus-desc">
-              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)[cite: 4]<br>
-              • <strong>3~4단계 전용</strong>: 텐파이 시 [리치] 선언 가능(+1점), 상대 버림패로 [론] 선언 가능[cite: 2]
+              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)<br>
+              • <strong>3~4단계 전용</strong>: 텐파이 시 [리치] 선언 가능(+1점), 상대 버림패로 [론] 선언 가능
             </div>
           </div>
         </div>
@@ -497,6 +507,7 @@
     let lastSelectedMode = 'none';
     let lastSelectedDiff = 'high';
     let modalTimer = null;
+    let diceSpinInterval = null;
 
     const levelDescriptions = {
       1: "🐣 <strong>1단계 (입문)</strong>: 기초적인 족보만 적용됩니다. (일색, 삼연, 육화)<br>※ 리치/론/개화/무쌍 등은 비활성화됩니다.",
@@ -521,9 +532,9 @@
           return;
         }
 
-        // 주사위 롤링 이벤트 수신 시
+        // 플레이어 면 주사위 롤링 이벤트 수신 시
         if (data.dice_event) {
-          showDiceRollAnimation(data.dice_event);
+          showPlayerDiceRoll(data.dice_event);
         }
 
         // 중앙 네모 박스 알림창 실행
@@ -655,7 +666,7 @@
           timerBox.style.display = 'none';
         }
 
-        // 타 플레이어 손패 목록 렌더링
+        // 상대방 손패 목록 렌더링
         const oppContainer = document.getElementById('opp-panels-container');
         oppContainer.innerHTML = '';
         for (let p in data.opp_hands) {
@@ -868,29 +879,33 @@
 
     connectWebSocket();
 
-    // 주사위 롤링 연출 모달 함수
-    function showDiceRollAnimation(diceEv) {
+    // 1P, 2P, 3P 등 플레이어 면 주사위 롤링 연출 함수
+    function showPlayerDiceRoll(diceEv) {
       const modal = document.getElementById('dice-modal');
-      const d1 = document.getElementById('dice-1');
-      const d2 = document.getElementById('dice-2');
+      const diceEl = document.getElementById('player-dice-face');
       const resTxt = document.getElementById('dice-result-text');
 
-      d1.innerText = '?';
-      d2.innerText = '?';
-      d1.classList.add('rolling');
-      d2.classList.add('rolling');
-      resTxt.innerText = '선공을 정하는 주사위를 굴립니다...';
+      if (diceSpinInterval) clearInterval(diceSpinInterval);
+
       modal.style.display = 'block';
+      diceEl.className = 'player-dice rolling-spin';
+      resTxt.innerText = '선공을 정하는 주사위를 굴립니다...';
+
+      let currentShow = 1;
+      diceSpinInterval = setInterval(() => {
+        currentShow = (currentShow % diceEv.max_players) + 1;
+        diceEl.innerText = `${currentShow}P`;
+      }, 70);
 
       setTimeout(() => {
-        d1.classList.remove('rolling');
-        d2.classList.remove('rolling');
-        d1.innerText = diceEv.d1;
-        d2.innerText = diceEv.d2;
-        resTxt.innerHTML = `🎲 눈금 합: <strong>${diceEv.total}</strong> ➔ <span style="color:#facc15; font-size:17px;">[${diceEv.starter}P] 선공 확정!</span>`;
+        clearInterval(diceSpinInterval);
+        diceEl.className = 'player-dice winner-pulse';
+        diceEl.innerText = `${diceEv.starter}P`;
+        resTxt.innerHTML = `선공 당첨: <strong style="color:#facc15; font-size:18px;">[${diceEv.starter}P] 선공 확정!</strong>`;
 
         setTimeout(() => {
           modal.style.display = 'none';
+          diceEl.className = 'player-dice';
         }, 1200);
       }, 1000);
     }
