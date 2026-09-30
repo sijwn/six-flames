@@ -17,19 +17,29 @@
     .btn-home { background: #475569; color: #f8fafc; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
     .btn-home:hover { background: #64748b; }
 
-    /* 대형 팝업 배너 (리치, 쯔모, 론) */
-    #action-banner {
-      position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.7);
-      padding: 18px 36px; border-radius: 16px; font-size: 26px; font-weight: 900;
-      color: #fff; z-index: 9999; pointer-events: none; opacity: 0;
+    /* 화면 중앙 네모 박스 알림창 */
+    #action-box-modal {
+      position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.8);
+      min-width: 280px; max-width: 400px; padding: 22px 24px; border-radius: 14px;
+      text-align: center; z-index: 9999; pointer-events: none; opacity: 0;
       transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-      box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+      box-shadow: 0 16px 45px rgba(0,0,0,0.85);
     }
-    #action-banner.banner-riichi { background: linear-gradient(135deg, #ef4444, #991b1b); border: 3px solid #fecaca; }
-    #action-banner.banner-tsumo { background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: 3px solid #bfdbfe; }
-    #action-banner.banner-ron { background: linear-gradient(135deg, #10b981, #065f46); border: 3px solid #a7f3d0; }
-    #action-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    #action-box-modal.box-riichi {
+      background: #1e1b4b; border: 3px solid #ef4444; color: #fecaca;
+    }
+    #action-box-modal.box-tsumo {
+      background: #0f172a; border: 3px solid #38bdf8; color: #bae6fd;
+    }
+    #action-box-modal.box-ron {
+      background: #064e3b; border: 3px solid #34d399; color: #a7f3d0;
+    }
+    #action-box-modal.show {
+      opacity: 1; transform: translate(-50%, -50%) scale(1.05);
+    }
+    .modal-box-title { font-size: 22px; font-weight: 900; margin-bottom: 6px; letter-spacing: -0.5px; }
+    .modal-box-yaku { font-size: 26px; font-weight: 900; margin: 4px 0; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.4); }
+    .modal-box-sub { font-size: 13px; opacity: 0.9; margin-top: 4px; }
 
     .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
     .score-box { text-align: center; padding: 6px 16px; border-radius: 8px; transition: all 0.3s; }
@@ -113,10 +123,14 @@
     .settlement-card.win { border-left-color: #4ade80; }
     .settlement-card.incidental { border-left-color: #facc15; }
 
-    /* 바닥패 가져감 알림 배지 */
+    /* 바닥 알림 배지 (주워감 / 버림) */
     .taken-notice-badge {
       background: #854d0e; color: #fef08a; padding: 3px 8px; border-radius: 4px;
-      font-size: 11px; font-weight: bold; margin-left: 6px; display: inline-block;
+      font-size: 11px; font-weight: bold; margin-left: 4px; display: inline-block;
+    }
+    .discard-notice-badge {
+      background: #1e3a8a; color: #93c5fd; padding: 3px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: bold; margin-left: 4px; display: inline-block;
     }
 
     .yaku-guide-wrap { margin-top: 24px; background: #0f172a; border-radius: 12px; padding: 18px; border: 1px solid #334155; }
@@ -153,8 +167,12 @@
   </style>
 </head>
 <body>
-  <!-- 액션 알림 배너 (리치 / 쯔모 / 론) -->
-  <div id="action-banner"></div>
+  <!-- 중앙 네모 박스 알림창 -->
+  <div id="action-box-modal">
+    <div class="modal-box-title" id="box-title"></div>
+    <div class="modal-box-yaku" id="box-yaku"></div>
+    <div class="modal-box-sub" id="box-sub"></div>
+  </div>
 
   <div class="container">
     <div class="top-nav">
@@ -178,7 +196,6 @@
         </div>
       </div>
 
-      <!-- 1인 모드 난이도 (기본값: 고급) -->
       <div id="single-diff-setup" style="display: none; background: #0f172a; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto; border: 1px solid #334155;">
         <h3 style="margin-top: 0; color: #facc15;">🤖 AI 난이도 설정</h3>
         <div style="margin: 15px 0;">
@@ -190,7 +207,7 @@
       </div>
     </div>
 
-    <!-- 2. 게임 설정 로비 화면 (단계별 룰 포함) -->
+    <!-- 2. 게임 설정 로비 화면 -->
     <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
       <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
       
@@ -272,6 +289,7 @@
           버려진 패 (바닥)
           <span id="discard-hint" style="color:#4ade80; font-size:11px; display:none;">- 클릭해서 가져오기 가능</span>
           <span id="last-taken-badge" class="taken-notice-badge" style="display:none;"></span>
+          <span id="last-discard-badge" class="discard-notice-badge" style="display:none;"></span>
         </span>
         <span style="font-size: 13px;">남은 패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
       </div>
@@ -307,7 +325,7 @@
         </div>
       </div>
 
-      <!-- 접기/열기 가능한 역 일람표 (선택 단계에 따라 동적 필터링) -->
+      <!-- 접기/열기 가능한 역 일람표 -->
       <div class="yaku-guide-wrap">
         <div class="yaku-header" onclick="toggleYakuGuide()">
           <h3>📜 <span id="guide-level-label">4단계 전체</span> 역(족보) 일람 안내</h3>
@@ -484,7 +502,6 @@
       ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
       
       ws.onopen = () => {
-        // 모바일 자동 복귀 시 직전 선택 모드가 있었다면 재요청
         if (lastSelectedMode !== 'none') {
           ws.send(JSON.stringify({ action: 'select_mode', mode: lastSelectedMode, diff: lastSelectedDiff }));
         }
@@ -497,9 +514,9 @@
           return;
         }
 
-        // 대형 팝업 배너 표시 (리치, 쯔모, 론)
+        // 중앙 네모 박스 알림창 실행 (리치, 쯔모, 론)
         if (data.event_banner) {
-          triggerActionBanner(data.event_banner.type, data.event_banner.text);
+          triggerActionBoxModal(data.event_banner);
         }
 
         if (data.mode === 'none') {
@@ -533,7 +550,7 @@
           topBadge.innerText = `👥 2인 모드 (${currentRuleLevel}단계)`;
         }
 
-        // 로비 화면
+        // 로비 제어
         if (!data.game_started) {
           document.getElementById('mode-panel').style.display = 'none';
           document.getElementById('lobby-panel').style.display = 'block';
@@ -573,7 +590,7 @@
           return;
         }
 
-        // 인게임 화면
+        // 인게임 제어
         document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'none';
         document.getElementById('game-panel').style.display = 'block';
@@ -625,7 +642,7 @@
           timerBox.style.display = 'none';
         }
 
-        // 바닥에서 가져간 패 표시
+        // 바닥 알림 1: 주워간 패 표시
         const takenBadge = document.getElementById('last-taken-badge');
         if (data.last_taken_discard) {
           const byWhom = (data.last_taken_discard.by === myPlayer) ? '내가' : (data.mode === 'single' ? 'AI가' : '상대가');
@@ -634,6 +651,17 @@
           takenBadge.innerText = `${byWhom} [${t.top}/${t.bottom}] 주워감`;
         } else {
           takenBadge.style.display = 'none';
+        }
+
+        // 바닥 알림 2: 최근 버린 패 표시
+        const discardBadge = document.getElementById('last-discard-badge');
+        if (data.last_discard_info) {
+          const byWhom = (data.last_discard_info.by === myPlayer) ? '내가' : (data.mode === 'single' ? 'AI가' : '상대가');
+          const t = data.last_discard_info.tile;
+          discardBadge.style.display = 'inline-block';
+          discardBadge.innerText = `${byWhom} [${t.top}/${t.bottom}] 버림`;
+        } else {
+          discardBadge.style.display = 'none';
         }
 
         const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
@@ -666,7 +694,6 @@
         document.getElementById('deck-count').innerText = data.deck_count;
         document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
 
-        // 리치 버튼 (3단계 이상에서만 활성화)
         const btnRiichi = document.getElementById('btn-riichi');
         if (currentRuleLevel >= 3) {
           btnRiichi.style.display = 'inline-block';
@@ -800,19 +827,16 @@
       };
 
       ws.onclose = () => {
-        // 모바일 절전모드 해제 시 즉각 재연결
         setTimeout(connectWebSocket, 1000);
       };
     }
 
-    // 모바일 핑/퐁 킵얼라이브 (3초 주기)
     setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'ping' }));
       }
     }, 3000);
 
-    // 모바일 화면 복귀 시 자동 터치 복구
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -825,18 +849,26 @@
 
     connectWebSocket();
 
-    function triggerActionBanner(type, text) {
-      const banner = document.getElementById('action-banner');
-      banner.className = '';
-      banner.innerText = text;
-      if (type === 'riichi') banner.classList.add('banner-riichi');
-      else if (type === 'tsumo') banner.classList.add('banner-tsumo');
-      else if (type === 'ron') banner.classList.add('banner-ron');
-      
-      banner.classList.add('show');
+    // 중앙 네모 박스 모달 팝업 트리거
+    function triggerActionBoxModal(banner) {
+      const modal = document.getElementById('action-box-modal');
+      const titleEl = document.getElementById('box-title');
+      const yakuEl = document.getElementById('box-yaku');
+      const subEl = document.getElementById('box-sub');
+
+      modal.className = '';
+      titleEl.innerText = banner.title || '';
+      yakuEl.innerText = banner.yaku_name || '';
+      subEl.innerText = banner.subtext || '';
+
+      if (banner.type === 'riichi') modal.classList.add('box-riichi');
+      else if (banner.type === 'tsumo') modal.classList.add('box-tsumo');
+      else if (banner.type === 'ron') modal.classList.add('box-ron');
+
+      modal.classList.add('show');
       setTimeout(() => {
-        banner.classList.remove('show');
-      }, 1500);
+        modal.classList.remove('show');
+      }, 1600);
     }
 
     function updateRuleLevelUI(level) {
@@ -844,7 +876,6 @@
       const levelNames = { 1: "1단계 (입문)", 2: "2단계 (초급)", 3: "3단계 (중급)", 4: "4단계 (전체 룰)" };
       document.getElementById('guide-level-label').innerText = levelNames[level];
 
-      // 단계별 족보 카드 보이기/숨기기
       const cards = document.querySelectorAll('.yaku-card');
       cards.forEach(card => {
         const cLevel = parseInt(card.getAttribute('data-level'), 10);
