@@ -10,56 +10,64 @@
       --c4: #10b981; --c5: #3b82f6; --c6: #a855f7;
     }
     * { box-sizing: border-box; touch-action: manipulation; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 12px; }
-    .container { max-width: 860px; margin: 0 auto; background: #1e293b; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); position: relative; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0b1120; color: #f8fafc; margin: 0; padding: 6px;
+      overflow-x: hidden;
+    }
+    .container {
+      max-width: 880px; margin: 0 auto; background: #131d31; border-radius: 12px;
+      padding: 8px 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); position: relative;
+    }
     
-    .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .btn-home { background: #475569; color: #f8fafc; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
-    .btn-home:hover { background: #64748b; }
+    .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .btn-home { background: #334155; color: #f8fafc; border: none; padding: 4px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; }
+    .btn-home:hover { background: #475569; }
 
+    /* 화면 중앙 선명한 알림 박스 */
     #action-box-modal {
-      position: fixed; top: 42%; left: 50%; transform: translate(-50%, -50%);
-      min-width: 300px; max-width: 440px; padding: 24px 28px; border-radius: 16px;
+      position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
+      min-width: 260px; max-width: 380px; padding: 18px 22px; border-radius: 14px;
       text-align: center; z-index: 999999; pointer-events: none; display: none;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95);
     }
-    #action-box-modal.box-riichi { background: #180509; border: 3.5px solid #ef4444; color: #fee2e2; }
-    #action-box-modal.box-tsumo { background: #031525; border: 3.5px solid #38bdf8; color: #e0f2fe; }
-    #action-box-modal.box-ron { background: #022c22; border: 3.5px solid #10b981; color: #d1fae5; }
+    #action-box-modal.box-riichi { background: #1a0508; border: 3px solid #ef4444; color: #fee2e2; }
+    #action-box-modal.box-tsumo { background: #02182b; border: 3px solid #38bdf8; color: #e0f2fe; }
+    #action-box-modal.box-ron { background: #012b1e; border: 3px solid #10b981; color: #d1fae5; }
 
-    .anim-riichi-fade { animation: modalFadeRiichi 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .anim-riichi-fade { animation: modalFadeRiichi 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     @keyframes modalFadeRiichi {
-      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); }
-      30% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
-      70% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); } /* 1초간 유지 */
       100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
     }
 
-    .anim-win-fade { animation: modalFadeWin 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .anim-win-fade { animation: modalFadeWin 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     @keyframes modalFadeWin {
-      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); }
-      25% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
-      75% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
       100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
     }
 
-    .modal-box-title { font-size: 20px; font-weight: 900; margin-bottom: 6px; }
-    .modal-box-yaku { font-size: 28px; font-weight: 900; margin: 6px 0; color: #ffffff; }
-    .modal-box-sub { font-size: 14px; opacity: 0.95; margin-top: 6px; font-weight: bold; }
+    .modal-box-title { font-size: 19px; font-weight: 900; margin-bottom: 4px; }
+    .modal-box-yaku { font-size: 24px; font-weight: 900; margin: 4px 0; color: #facc15; }
+    .modal-box-sub { font-size: 12px; opacity: 0.9; margin-top: 4px; font-weight: bold; }
 
+    /* 플레이어 주사위 롤링 모달 창 */
     #dice-modal {
       position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
-      background: #090d16; border: 3.5px solid #38bdf8; border-radius: 20px;
-      padding: 26px 36px; text-align: center; z-index: 1000000; display: none;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.9), 0 0 35px rgba(56, 189, 248, 0.5);
+      background: #090d16; border: 3px solid #38bdf8; border-radius: 16px;
+      padding: 20px 28px; text-align: center; z-index: 1000000; display: none;
+      box-shadow: 0 16px 50px rgba(0,0,0,0.9), 0 0 30px rgba(56, 189, 248, 0.5);
     }
-    .dice-wrap { display: flex; justify-content: center; margin: 18px 0; }
+    .dice-wrap { display: flex; justify-content: center; margin: 14px 0; }
     .player-dice {
-      width: 80px; height: 80px; background: linear-gradient(135deg, #2563eb, #1e3a8a);
-      border: 3px solid #60a5fa; border-radius: 16px; color: #ffffff; font-size: 32px;
+      width: 70px; height: 70px; background: linear-gradient(135deg, #2563eb, #1e3a8a);
+      border: 3px solid #60a5fa; border-radius: 14px; color: #ffffff; font-size: 28px;
       font-weight: 900; display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.6), inset 0 0 10px rgba(255,255,255,0.4);
-      letter-spacing: -1px; text-shadow: 0 0 8px rgba(255,255,255,0.7);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.6); letter-spacing: -1px;
     }
     .rolling-spin { animation: diceSpin 0.12s infinite; }
     @keyframes diceSpin {
@@ -74,207 +82,252 @@
     }
     @keyframes pulseWin {
       from { transform: scale(1.0); box-shadow: 0 0 15px #34d399; }
-      to { transform: scale(1.15); box-shadow: 0 0 30px #34d399; }
+      to { transform: scale(1.1); box-shadow: 0 0 25px #34d399; }
     }
 
-    .scoreboard { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 8px; margin-bottom: 8px; gap: 6px; }
-    .score-box { text-align: center; padding: 4px 10px; border-radius: 8px; transition: all 0.3s; flex: 1; min-width: 70px; }
-    .player-label { font-size: 13px; font-weight: bold; color: #94a3b8; transition: color 0.3s; }
+    /* 콤팩트 스코어 바 */
+    .scoreboard { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; background: #090e1a; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; gap: 4px; }
+    .score-box { text-align: center; padding: 3px 6px; border-radius: 6px; transition: all 0.3s; flex: 1; min-width: 60px; }
+    .player-label { font-size: 11px; font-weight: bold; color: #94a3b8; }
     
     .score-box.active-turn {
-      background: rgba(59, 130, 246, 0.15);
+      background: rgba(59, 130, 246, 0.2);
       border: 1px solid rgba(56, 189, 248, 0.4);
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
-      animation: turnGlow 1.5s infinite alternate;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
     }
-    .score-box.active-turn .player-label { color: #38bdf8; text-shadow: 0 0 8px #38bdf8; }
-    @keyframes turnGlow {
-      from { box-shadow: 0 0 6px rgba(56, 189, 248, 0.2); }
-      to { box-shadow: 0 0 16px rgba(56, 189, 248, 0.6); }
-    }
+    .score-box.active-turn .player-label { color: #38bdf8; }
 
-    .score-val { font-size: 20px; font-weight: bold; color: #f59e0b; }
-    .riichi-badge { background: #ef4444; color: white; padding: 2px 4px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-left: 2px; }
-    .timer-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+    .score-val { font-size: 16px; font-weight: bold; color: #f59e0b; line-height: 1.1; }
+    .riichi-badge { background: #ef4444; color: white; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold; margin-left: 2px; }
+    .timer-badge { background: #1e293b; padding: 3px 8px; border-radius: 14px; font-weight: bold; font-size: 11px; display: inline-flex; align-items: center; gap: 2px; }
     .timer-warn { color: #ef4444; animation: pulse 0.5s infinite alternate; }
 
-    .conn-tag { font-size: 10px; padding: 1px 4px; border-radius: 3px; font-weight: normal; margin-left: 2px; }
+    .conn-tag { font-size: 9px; padding: 1px 3px; border-radius: 3px; }
     .conn-online { background: #065f46; color: #a7f3d0; }
-    .conn-offline { background: #881337; color: #fecdd3; animation: pulse 0.8s infinite alternate; }
+    .conn-offline { background: #881337; color: #fecdd3; }
 
-    .opp-panels-wrap { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
-    .opp-row { background: #131d31; padding: 6px 10px; border-radius: 8px; border: 1px solid #334155; }
-    .opp-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #94a3b8; font-weight: bold; margin-bottom: 4px; }
+    /* ========================================================= */
+    /* 마작 작탁(Mahjong Table) 사각 배치 레이아웃                */
+    /* ========================================================= */
+    .mahjong-table {
+      position: relative; width: 100%; min-height: 380px; max-height: 440px;
+      background: radial-gradient(circle at center, #1b283d 0%, #0d1524 100%);
+      border: 2px solid #23354d; border-radius: 12px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: auto 1fr auto;
+      padding: 6px; gap: 4px; margin-bottom: 6px;
+    }
 
-    .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-    .tile-wrap { position: relative; display: inline-block; padding-top: 14px; }
+    /* 상단 플레이어 (마주보는 사람) */
+    .table-top {
+      grid-column: 1 / 4; grid-row: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    /* 좌측 플레이어 */
+    .table-left {
+      grid-column: 1; grid-row: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; width: 55px;
+    }
+    /* 우측 플레이어 */
+    .table-right {
+      grid-column: 3; grid-row: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; width: 55px;
+    }
+    /* 중앙 바닥패 (버림패 풀) */
+    .table-center {
+      grid-column: 2; grid-row: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(11, 18, 32, 0.65); border: 1px dashed #334155; border-radius: 10px;
+      padding: 6px; position: relative; min-height: 140px;
+    }
+    /* 하단 (나) */
+    .table-bottom {
+      grid-column: 1 / 4; grid-row: 3;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(15, 23, 42, 0.7); border-radius: 10px; padding: 4px; border: 1px solid #1e293b;
+    }
+
+    .table-player-tag { font-size: 11px; font-weight: bold; color: #94a3b8; margin-bottom: 2px; }
+
+    /* 도미노 타일 스타일 (콤팩트 핏) */
+    .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+    .tile-wrap { position: relative; display: inline-block; padding-top: 13px; }
     .tile {
       display: inline-flex; flex-direction: column; justify-content: space-between;
-      width: 44px; height: 76px; background: #fafafa; border-radius: 6px;
-      cursor: pointer; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      border: 2px solid transparent; transition: transform 0.1s, border-color 0.1s;
+      width: 38px; height: 64px; background: #fafafa; border-radius: 5px;
+      cursor: pointer; user-select: none; box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      border: 1.5px solid transparent; transition: transform 0.1s, border-color 0.1s;
     }
-    .tile:hover:not(.locked) { transform: translateY(-4px); }
+    .tile:hover:not(.locked) { transform: translateY(-3px); }
     .tile.locked { opacity: 0.5; cursor: not-allowed; }
-    .tile.drawn-highlight { border: 2px solid #38bdf8 !important; box-shadow: 0 0 10px #38bdf8 !important; }
-    .tile.last-discard { border: 2px solid #facc15; box-shadow: 0 0 10px #facc15; }
+    .tile.drawn-highlight { border: 2px solid #38bdf8 !important; box-shadow: 0 0 8px #38bdf8 !important; }
+    .tile.last-discard { border: 2px solid #facc15; box-shadow: 0 0 8px #facc15; }
     .tile.selectable-discard { border: 2px dashed #4ade80 !important; cursor: pointer !important; }
 
     .tile-ctrl-btn {
-      position: absolute; top: 0; background: #334155; color: #cbd5e1;
-      border: 1px solid #64748b; border-radius: 4px; width: 14px; height: 14px;
-      font-size: 9px; line-height: 12px; text-align: center; cursor: pointer; z-index: 5;
+      position: absolute; top: 0; background: #1e293b; color: #cbd5e1;
+      border: 1px solid #475569; border-radius: 3px; width: 12px; height: 12px;
+      font-size: 8px; line-height: 10px; text-align: center; cursor: pointer; z-index: 5;
     }
     .tile-ctrl-btn:hover { background: #3b82f6; color: #fff; }
     .btn-move-left { left: 0; }
-    .btn-move-right { left: 16px; }
-    .btn-flip { right: 0; border-radius: 50%; width: 16px; height: 16px; line-height: 14px; font-size: 10px; }
+    .btn-move-right { left: 14px; }
+    .btn-flip { right: 0; border-radius: 50%; width: 14px; height: 14px; line-height: 12px; font-size: 9px; }
 
-    .tile-half { font-weight: 900; font-size: 19px; height: 33px; display: flex; align-items: center; justify-content: center; }
+    .tile-half { font-weight: 900; font-size: 16px; height: 28px; display: flex; align-items: center; justify-content: center; }
     .tile-divider { height: 1px; background: #cbd5e1; position: relative; }
-    .star-mark { position: absolute; top: -7px; left: calc(50% - 6px); font-size: 10px; color: #ef4444; background: #fafafa; border-radius: 50%; line-height: 12px; width: 12px; text-align: center; }
+    .star-mark { position: absolute; top: -6px; left: calc(50% - 5px); font-size: 8px; color: #ef4444; background: #fafafa; border-radius: 50%; line-height: 10px; width: 10px; text-align: center; }
 
     .num-1 { color: var(--c1); } .num-2 { color: var(--c2); } .num-3 { color: var(--c3); }
     .num-4 { color: var(--c4); } .num-5 { color: var(--c5); } .num-6 { color: var(--c6); }
-    .tile-back { background: #334155; border: 2px dashed #64748b; width: 36px; height: 60px; cursor: default; }
+    
+    /* 상대방 미니 비공개 패 */
+    .tile-mini-back {
+      background: #1e293b; border: 1px dashed #475569;
+      width: 24px; height: 38px; border-radius: 3px;
+    }
+    .tile-mini-back.side {
+      width: 38px; height: 22px; margin: 2px 0;
+    }
 
-    .action-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 0; }
-    button { background: #3b82f6; color: white; border: none; padding: 10px 16px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
-    button:disabled { background: #475569; cursor: not-allowed; opacity: 0.5; }
-    button.btn-win { background: #10b981; }
-    button.btn-ron { background: #f59e0b; }
-    button.btn-riichi { background: #ef4444; }
+    .action-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 6px 0; }
+    button { background: #2563eb; color: white; border: none; padding: 7px 14px; font-size: 13px; font-weight: bold; border-radius: 6px; cursor: pointer; }
+    button:disabled { background: #334155; cursor: not-allowed; opacity: 0.5; }
+    button.btn-win { background: #059669; }
+    button.btn-ron { background: #d97706; }
+    button.btn-riichi { background: #dc2626; }
 
-    .yaku-badge { background: #10b981; color: white; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold; display: inline-block; margin-bottom: 8px; }
-    .discards-box { background: #0f172a; border-radius: 8px; padding: 8px; min-height: 85px; max-height: 160px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-    .sec-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin-top: 10px; }
+    .yaku-badge { background: #059669; color: white; padding: 3px 10px; border-radius: 14px; font-size: 11px; font-weight: bold; display: inline-block; margin-bottom: 4px; }
+    .discards-box {
+      border-radius: 6px; padding: 4px; max-height: 110px; overflow-y: auto;
+      display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-content: flex-start;
+      width: 100%;
+    }
+    .discards-box .tile { width: 30px; height: 50px; }
+    .discards-box .tile-half { font-size: 13px; height: 22px; }
 
-    .settlement-card { background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 8px 12px; margin: 6px 0; text-align: left; font-size: 14px; }
-    .settlement-card.win { border-left-color: #4ade80; }
-    .settlement-card.incidental { border-left-color: #facc15; }
+    .taken-notice-badge { background: #854d0e; color: #fef08a; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .discard-notice-badge { background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
 
-    .taken-notice-badge { background: #854d0e; color: #fef08a; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 4px; display: inline-block; }
-    .discard-notice-badge { background: #1e3a8a; color: #93c5fd; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 4px; display: inline-block; }
-
-    .yaku-guide-wrap { margin-top: 24px; background: #0f172a; border-radius: 12px; padding: 18px; border: 1px solid #334155; }
+    .yaku-guide-wrap { margin-top: 14px; background: #090e1a; border-radius: 10px; padding: 12px; border: 1px solid #1e293b; }
     .yaku-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
-    .yaku-header h3 { margin: 0; color: #38bdf8; font-size: 16px; }
-    .btn-toggle-guide { background: #1e293b; color: #cbd5e1; border: 1px solid #475569; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+    .yaku-header h3 { margin: 0; color: #38bdf8; font-size: 13px; }
+    .btn-toggle-guide { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 4px 8px; font-size: 10px; border-radius: 4px; cursor: pointer; }
 
-    .yaku-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 14px; }
-    .yaku-card { background: #1e293b; border-radius: 8px; padding: 12px; border: 1px solid #475569; font-size: 13px; display: flex; flex-direction: column; justify-content: space-between; }
-    .yaku-title { font-size: 15px; font-weight: bold; color: #facc15; display: flex; justify-content: space-between; margin-bottom: 6px; }
-    .yaku-desc { color: #cbd5e1; font-size: 12px; line-height: 1.4; margin-bottom: 10px; min-height: 34px; }
+    .yaku-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+    .yaku-card { background: #131d31; border-radius: 6px; padding: 8px; border: 1px solid #334155; font-size: 11px; display: flex; flex-direction: column; justify-content: space-between; }
+    .yaku-title { font-size: 12px; font-weight: bold; color: #facc15; display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .yaku-desc { color: #cbd5e1; font-size: 10px; line-height: 1.3; margin-bottom: 6px; }
 
     .visual-example {
       display: flex; align-items: center; justify-content: center;
-      background: #090d16; padding: 8px; border-radius: 6px; gap: 4px; overflow-x: auto; border: 1px solid #1e293b;
+      background: #090d16; padding: 4px; border-radius: 4px; gap: 3px; overflow-x: auto;
     }
     .m-tile {
-      display: inline-flex; flex-direction: column; width: 25px; height: 44px;
-      background: #fafafa; border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-      border: 1px solid #cbd5e1; font-weight: bold; text-align: center; flex-shrink: 0;
+      display: inline-flex; flex-direction: column; width: 19px; height: 32px;
+      background: #fafafa; border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      font-weight: bold; text-align: center; flex-shrink: 0;
     }
-    .m-half { height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+    .m-half { height: 14px; display: flex; align-items: center; justify-content: center; font-size: 9px; line-height: 1; }
     .m-divider { height: 1px; background: #94a3b8; position: relative; }
-    .m-star { position: absolute; top: -4.5px; left: calc(50% - 4px); width: 8px; height: 8px; color: #ef4444; font-size: 7px; background: #fafafa; border-radius: 50%; line-height: 8px; text-align: center; }
-    .m-group-sep { color: #64748b; font-size: 12px; font-weight: bold; padding: 0 1px; }
-    .m-arrow { color: #38bdf8; font-size: 12px; margin-left: 2px; }
+    .m-star { position: absolute; top: -3px; left: calc(50% - 3px); width: 6px; height: 6px; color: #ef4444; font-size: 6px; background: #fafafa; border-radius: 50%; line-height: 6px; text-align: center; }
 
-    .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin: 24px 0; }
+    .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 18px 0; }
     .mode-btn-card {
-      background: #0f172a; border: 2px solid #3b82f6; border-radius: 12px;
-      padding: 18px 14px; text-align: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+      background: #090e1a; border: 2px solid #2563eb; border-radius: 10px;
+      padding: 14px 10px; text-align: center; cursor: pointer;
     }
-    .mode-btn-card:hover { transform: translateY(-4px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
+    .mode-btn-card:hover { transform: translateY(-3px); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); }
+
+    .settlement-card { background: #0f172a; border-left: 3px solid #38bdf8; border-radius: 4px; padding: 6px 10px; margin: 4px 0; text-align: left; font-size: 12px; }
   </style>
 </head>
 <body>
+  <!-- 화면 중앙 알림 모달 (리치 / 쯔모 / 론) -->
   <div id="action-box-modal">
     <div class="modal-box-title" id="box-title"></div>
     <div class="modal-box-yaku" id="box-yaku"></div>
     <div class="modal-box-sub" id="box-sub"></div>
   </div>
 
+  <!-- 선공 주사위 모달 -->
   <div id="dice-modal">
-    <h3 style="margin: 0 0 10px 0; color: #facc15; font-size: 19px;">🎲 선공 결정 주사위!</h3>
+    <h3 style="margin: 0 0 6px 0; color: #facc15; font-size: 16px;">🎲 선공 결정 주사위!</h3>
     <div class="dice-wrap">
       <div class="player-dice rolling-spin" id="player-dice-face">1P</div>
     </div>
-    <div id="dice-result-text" style="font-size: 15px; font-weight: bold; color: #38bdf8; min-height: 24px;">주사위를 힘차게 굴립니다...</div>
+    <div id="dice-result-text" style="font-size: 13px; font-weight: bold; color: #38bdf8; min-height: 20px;">주사위를 굴립니다...</div>
   </div>
 
   <div class="container">
     <div class="top-nav">
       <button class="btn-home" onclick="actionGoHome()">🏠 로비로 (모드 선택)</button>
-      <div id="top-mode-badge" style="font-size: 13px; color: #38bdf8; font-weight: bold;"></div>
+      <div id="top-mode-badge" style="font-size: 11px; color: #38bdf8; font-weight: bold;"></div>
     </div>
 
     <!-- 1. 모드 선택 화면 -->
-    <div id="mode-panel" style="text-align: center; padding: 20px 0;">
-      <h1 style="color: #facc15; margin-bottom: 6px;">🔥 여섯 불꽃 (Six Flames)</h1>
-      <p style="color: #94a3b8; margin-bottom: 20px;">플레이 방식을 선택해 주세요</p>
+    <div id="mode-panel" style="text-align: center; padding: 14px 0;">
+      <h1 style="color: #facc15; margin-bottom: 4px; font-size: 22px;">🔥 여섯 불꽃 (Six Flames)</h1>
+      <p style="color: #94a3b8; margin-bottom: 16px; font-size: 13px;">플레이 방식을 선택해 주세요</p>
       
       <div class="mode-grid">
         <div class="mode-btn-card" onclick="openSingleSetup()">
-          <h2 style="color: #38bdf8; margin: 0 0 6px 0; font-size: 18px;">1인 연습</h2>
-          <p style="color: #cbd5e1; font-size: 12px; margin: 0;">AI 대결</p>
+          <h2 style="color: #38bdf8; margin: 0 0 4px 0; font-size: 16px;">1인 연습</h2>
+          <p style="color: #cbd5e1; font-size: 11px; margin: 0;">AI 대결</p>
         </div>
         <div class="mode-btn-card" onclick="selectMulti('multi_2')">
-          <h2 style="color: #4ade80; margin: 0 0 6px 0; font-size: 18px;">2인 대전</h2>
-          <p style="color: #cbd5e1; font-size: 12px; margin: 0;">1대1 온라인</p>
+          <h2 style="color: #4ade80; margin: 0 0 4px 0; font-size: 16px;">2인 대전</h2>
+          <p style="color: #cbd5e1; font-size: 11px; margin: 0;">1대1 온라인</p>
         </div>
         <div class="mode-btn-card" onclick="selectMulti('multi_3')">
-          <h2 style="color: #facc15; margin: 0 0 6px 0; font-size: 18px;">3인 대전</h2>
-          <p style="color: #cbd5e1; font-size: 12px; margin: 0;">3인 멀티플레이</p>
+          <h2 style="color: #facc15; margin: 0 0 4px 0; font-size: 16px;">3인 대전</h2>
+          <p style="color: #cbd5e1; font-size: 11px; margin: 0;">3인 멀티플레이</p>
         </div>
         <div class="mode-btn-card" onclick="selectMulti('multi_4')">
-          <h2 style="color: #f43f5e; margin: 0 0 6px 0; font-size: 18px;">4인 대전</h2>
-          <p style="color: #cbd5e1; font-size: 12px; margin: 0;">4인 풀배틀</p>
+          <h2 style="color: #f43f5e; margin: 0 0 4px 0; font-size: 16px;">4인 대전</h2>
+          <p style="color: #cbd5e1; font-size: 11px; margin: 0;">4인 풀배틀 작탁</p>
         </div>
       </div>
 
-      <div id="single-diff-setup" style="display: none; background: #0f172a; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto; border: 1px solid #334155;">
-        <h3 style="margin-top: 0; color: #facc15;">🤖 AI 난이도 설정</h3>
-        <div style="margin: 15px 0;">
-          <label><input type="radio" name="ai-diff" value="low"> 초급 (하)</label> &nbsp;&nbsp;
-          <label><input type="radio" name="ai-diff" value="mid"> 중급 (중)</label> &nbsp;&nbsp;
-          <label><input type="radio" name="ai-diff" value="high" checked> 고급 (상)</label>
+      <div id="single-diff-setup" style="display: none; background: #090e1a; padding: 14px; border-radius: 8px; max-width: 360px; margin: 0 auto; border: 1px solid #1e293b;">
+        <h3 style="margin-top: 0; color: #facc15; font-size: 14px;">🤖 AI 난이도 설정</h3>
+        <div style="margin: 10px 0; font-size: 13px;">
+          <label><input type="radio" name="ai-diff" value="low"> 초급</label> &nbsp;
+          <label><input type="radio" name="ai-diff" value="mid"> 중급</label> &nbsp;
+          <label><input type="radio" name="ai-diff" value="high" checked> 고급</label>
         </div>
-        <button onclick="startSingleMode()" style="background: #38bdf8; width: 100%;">1인 모드 시작하기</button>
+        <button onclick="startSingleMode()" style="background: #38bdf8; width: 100%;">1인 모드 시작</button>
       </div>
     </div>
 
     <!-- 2. 게임 설정 로비 화면 -->
-    <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
-      <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
+    <div id="lobby-panel" style="display:none; text-align:center; padding: 14px 0;">
+      <h2 id="lobby-heading" style="font-size: 18px; margin: 0 0 10px 0;">🔥 대전 준비 로비</h2>
       
-      <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;" id="lobby-role-badges">
-        <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;"></span>
-      </div>
+      <div style="margin-bottom: 10px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;" id="lobby-role-badges"></div>
 
-      <div style="background:#0f172a; padding:14px; border-radius:10px; border:1px solid #334155; margin: 15px auto; max-width: 580px; text-align:left;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <label style="font-weight:bold; color:#facc15;">📜 적용 룰 단계:</label>
-          <select id="sel-rule-level" onchange="onRuleLevelChanged()" style="padding:4px 8px; border-radius:4px; border:1px solid #475569; background:#1e293b; color:#fff; font-weight:bold;">
+      <div style="background:#090e1a; padding:10px 14px; border-radius:8px; border:1px solid #1e293b; margin: 10px auto; max-width: 520px; text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <label style="font-weight:bold; color:#facc15; font-size: 12px;">📜 룰 단계:</label>
+          <select id="sel-rule-level" onchange="onRuleLevelChanged()" style="padding:3px 6px; border-radius:4px; border:1px solid #334155; background:#131d31; color:#fff; font-size: 11px;">
             <option value="1">1단계 (입문: 일색, 삼연, 육화)</option>
             <option value="2">2단계 (+ 삼색, 삼동, 휘광)</option>
             <option value="3">3단계 (+ 무쌍, 리치, 론)</option>
             <option value="4" selected>4단계 (전체 룰: + 개화, 연쇄)</option>
           </select>
         </div>
-        <div id="rule-level-desc" style="font-size:12px; color:#cbd5e1; line-height:1.5;"></div>
+        <div id="rule-level-desc" style="font-size:11px; color:#cbd5e1; line-height:1.4;"></div>
       </div>
 
-      <div id="lobby-settings" style="margin: 15px 0;">
+      <div id="lobby-settings" style="margin: 10px 0; font-size: 12px;">
         <label>목표 점수: </label>
-        <input type="number" id="inp-target" value="10" min="1" max="999" 
-               oninput="sendSettings()" 
-               style="width: 70px; padding: 4px; text-align: center; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff; font-weight: bold; margin-right: 15px;">
+        <input type="number" id="inp-target" value="10" min="1" max="999" oninput="sendSettings()" 
+               style="width: 60px; padding: 3px; text-align: center; border-radius: 4px; border: 1px solid #334155; background: #090e1a; color: #fff; font-weight: bold; margin-right: 10px;">
         
         <span id="single-delay-wrap" style="display:none;">
           <label>AI 딜레이: </label>
-          <select id="sel-ai-delay" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
+          <select id="sel-ai-delay" onchange="sendSettings()" style="padding: 3px; border-radius: 4px; border: 1px solid #334155; background: #090e1a; color: #fff;">
             <option value="0" selected>기본 (0초)</option>
             <option value="0.5">+0.5초</option>
             <option value="1.0">+1.0초</option>
@@ -285,72 +338,83 @@
 
         <span id="multi-time-wrap">
           <label>턴 제한 시간: </label>
-          <select id="sel-time" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
+          <select id="sel-time" onchange="sendSettings()" style="padding: 3px; border-radius: 4px; border: 1px solid #334155; background: #090e1a; color: #fff;">
             <option value="30">30초</option>
             <option value="60" selected>1분</option>
             <option value="120">2분</option>
-            <option value="180">3분</option>
             <option value="0">무제한</option>
           </select>
         </span>
       </div>
-      <button id="btn-lobby-ready" onclick="actionLobbyReady()" style="background:#10b981; font-size:16px; padding:12px 28px;">게임 준비 완료</button>
-      <div id="lobby-status" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
+      <button id="btn-lobby-ready" onclick="actionLobbyReady()" style="background:#059669; font-size:14px; padding:8px 22px;">게임 준비 완료</button>
+      <div id="lobby-status" style="margin-top:8px; font-size:11px; color:#cbd5e1;"></div>
     </div>
 
-    <!-- 3. 인게임 화면 -->
+    <!-- 3. 인게임 화면 (마작 사각 작탁 레이아웃) -->
     <div id="game-panel" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-        <span style="font-size:12px; color:#94a3b8;">목표 점수: <strong id="target-score-txt" style="color:#facc15;">10</strong>점</span>
-        <div class="timer-badge" id="timer-box" style="display:none;">⏱ <span id="timer-val">60</span>s</div>
-      </div>
-
+      
+      <!-- 상단 스코어보드 바 -->
       <div class="scoreboard" id="dynamic-scoreboard"></div>
-      <div id="status-bar" style="text-align:center; font-weight:bold; margin: 8px 0; min-height: 22px;">게임 준비 완료</div>
+      
+      <div id="status-bar" style="text-align:center; font-weight:bold; margin: 4px 0; min-height: 18px; font-size: 13px;">게임 준비 완료</div>
 
-      <div class="opp-panels-wrap" id="opp-panels-container"></div>
+      <!-- 사각형 마작 작탁 테이블 -->
+      <div class="mahjong-table" id="mahjong-table">
+        
+        <!-- 테이블 상단 플레이어 -->
+        <div class="table-top" id="slot-top"></div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; margin: 6px 0;">
-        <span class="sec-label">
-          버려진 패 (바닥)
-          <span id="discard-hint" style="color:#4ade80; font-size:11px; display:none;">- 클릭해서 가져오기 가능</span>
-          <span id="last-taken-badge" class="taken-notice-badge" style="display:none;"></span>
-          <span id="last-discard-badge" class="discard-notice-badge" style="display:none;"></span>
-        </span>
-        <span style="font-size: 13px;">남은 패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
+        <!-- 테이블 좌측 플레이어 -->
+        <div class="table-left" id="slot-left"></div>
+
+        <!-- 중앙 버림패 (바닥패) 영역 -->
+        <div class="table-center">
+          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom: 2px;">
+            <span style="font-size: 10px; color: #94a3b8; font-weight: bold;">
+              버린 패 (바닥)
+              <span id="last-taken-badge" class="taken-notice-badge" style="display:none;"></span>
+              <span id="last-discard-badge" class="discard-notice-badge" style="display:none;"></span>
+            </span>
+            <span style="font-size: 10px; color:#cbd5e1;">패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
+          </div>
+          <div class="discards-box" id="discards"></div>
+        </div>
+
+        <!-- 테이블 우측 플레이어 -->
+        <div class="table-right" id="slot-right"></div>
+
+        <!-- 테이블 하단 (나) -->
+        <div class="table-bottom">
+          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; padding: 0 4px;">
+            <div id="yaku-badge" class="yaku-badge" style="display:none;"></div>
+            <span style="font-size: 10px; color:#94a3b8;" id="my-slot-title">내 손패</span>
+            <div class="timer-badge" id="timer-box" style="display:none;">⏱ <span id="timer-val">60</span>s</div>
+          </div>
+          <div class="hand-container" id="my-hand"></div>
+        </div>
+
       </div>
-      <div class="discards-box" id="discards"></div>
 
+      <!-- 내 조작 액션 패널 -->
       <div class="action-panel">
         <button id="btn-draw" onclick="actionDraw(null)" disabled>패 뽑기</button>
         <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
         <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
+        <!-- 타가 패 직격 론 버튼 (언제든 조건 만족 시 인터럽트 활성화) -->
+        <button id="btn-ron-interrupt" class="btn-ron" onclick="actionRon('steal')" style="display:none; animation: pulse 0.7s infinite alternate;">론 (강탈 완성)!</button>
       </div>
 
-      <div id="ron-modal" style="display:none; text-align:center; margin: 10px 0; background: #334155; padding: 12px; border-radius: 8px;">
-        <div style="color:#facc15; font-weight:bold; margin-bottom: 8px;">상대 버림패로 바로 완성 가능!</div>
-        <button class="btn-ron" onclick="actionRon('steal')">론 선언 (상대 점수 강탈)</button>
-        <button class="btn-win" onclick="actionRon('direct')" style="margin-left:6px;">완성 선언 (점수 획득)</button>
-      </div>
-
-      <hr style="border: 0.5px solid #334155; margin: 14px 0;">
-
-      <div style="text-align: center;">
-        <div id="yaku-badge" class="yaku-badge" style="display:none;"></div>
-      </div>
-
-      <div class="sec-label">내 손패 (패 클릭: 버리기 | ◀, ▶ / 드래그: 순서 이동 | ↻: 위아래 뒤집기)</div>
-      <div class="hand-container" id="my-hand"></div>
-
-      <div id="ready-panel" style="display:none; margin-top: 15px; background: #0f172a; padding: 16px; border-radius: 10px;">
-        <h3 id="panel-title" style="margin-top:0; text-align:center; color:#facc15;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
-        <div id="settlement-list" style="margin-bottom: 14px;"></div>
+      <!-- 라운드 정산 패널 -->
+      <div id="ready-panel" style="display:none; margin-top: 8px; background: #090e1a; padding: 10px; border-radius: 8px;">
+        <h3 id="panel-title" style="margin:0 0 6px 0; text-align:center; color:#facc15; font-size: 14px;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
+        <div id="settlement-list" style="margin-bottom: 8px;"></div>
         <div style="text-align:center;">
-          <button id="btn-ready" onclick="actionNextStep()" style="background:#10b981; font-size: 15px; padding: 10px 24px;">다음 판 준비</button>
-          <div id="ready-status" style="font-size: 12px; color: #94a3b8; margin-top: 6px;"></div>
+          <button id="btn-ready" onclick="actionNextStep()" style="background:#059669; font-size: 13px; padding: 6px 18px;">다음 판 준비</button>
+          <div id="ready-status" style="font-size: 11px; color: #94a3b8; margin-top: 4px;"></div>
         </div>
       </div>
 
+      <!-- 족보 안내창 -->
       <div class="yaku-guide-wrap">
         <div class="yaku-header" onclick="toggleYakuGuide()">
           <h3>📜 <span id="guide-level-label">4단계 전체</span> 역(족보) 일람 안내</h3>
@@ -359,8 +423,8 @@
         
         <div class="yaku-grid" id="yaku-grid">
           <div class="yaku-card" data-level="4">
-            <div class="yaku-title"><span>개화 (4단계)</span> <span>8점 + ★보너스</span></div>
-            <div class="yaku-desc">위쪽은 1~6, 아래쪽은 6~1로 마주 보며 피어나는 형태</div>
+            <div class="yaku-title"><span>개화 (4단계)</span> <span>8점 + ★</span></div>
+            <div class="yaku-desc">위 1~6, 아래 6~1 대칭 페어</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
@@ -372,8 +436,8 @@
           </div>
 
           <div class="yaku-card" data-level="4">
-            <div class="yaku-title"><span>연쇄 (4단계)</span> <span>6점 (보너스 무시)</span></div>
-            <div class="yaku-desc">1부터 6까지 꼬리를 물며 순환하는 도미노 체인</div>
+            <div class="yaku-title"><span>연쇄 (4단계)</span> <span>6점</span></div>
+            <div class="yaku-desc">1부터 6까지 꼬리를 무는 체인</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
@@ -386,7 +450,7 @@
 
           <div class="yaku-card" data-level="3">
             <div class="yaku-title"><span>무쌍 (3단계)</span> <span>9점 (3+★6)</span></div>
-            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤</div>
+            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일 1장씩</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -398,8 +462,8 @@
           </div>
 
           <div class="yaku-card" data-level="2">
-            <div class="yaku-title"><span>휘광 (2단계)</span> <span>5점 (보너스 무시)</span></div>
-            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성</div>
+            <div class="yaku-title"><span>휘광 (2단계)</span> <span>5점</span></div>
+            <div class="yaku-desc">타일 6개 전부 더블(★) 타일</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -411,23 +475,21 @@
           </div>
 
           <div class="yaku-card" data-level="2">
-            <div class="yaku-title"><span>삼동 (2단계)</span> <span>5점 + ★보너스</span></div>
-            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성</div>
+            <div class="yaku-title"><span>삼동 (2단계)</span> <span>5점 + ★</span></div>
+            <div class="yaku-desc">같은 타일 짝(페어) 3벌</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
-              <span class="m-group-sep">|</span>
               <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
-              <span class="m-group-sep">|</span>
               <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
               <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
             </div>
           </div>
 
           <div class="yaku-card" data-level="2">
-            <div class="yaku-title"><span>삼색 (2단계)</span> <span>3점 (겸사겸사 전용)</span></div>
-            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)</div>
+            <div class="yaku-title"><span>삼색 (2단계)</span> <span>3점</span></div>
+            <div class="yaku-desc">단 3가지 숫자만으로 구성 (겸사겸사 전용)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
@@ -439,8 +501,8 @@
           </div>
 
           <div class="yaku-card" data-level="1">
-            <div class="yaku-title"><span>육화 (1단계)</span> <span>6점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속</div>
+            <div class="yaku-title"><span>육화 (1단계)</span> <span>6점 + ★</span></div>
+            <div class="yaku-desc">아래가 모두 동일, 위쪽 1~6 연속</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
@@ -448,18 +510,16 @@
               <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
-              <span class="m-arrow">➔</span>
             </div>
           </div>
 
           <div class="yaku-card" data-level="1">
-            <div class="yaku-title"><span>삼연 (1단계)</span> <span>3점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌</div>
+            <div class="yaku-title"><span>삼연 (1단계)</span> <span>3점 + ★</span></div>
+            <div class="yaku-desc">아래쪽 같고 위쪽 연속된 3장 2벌</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
-              <span class="m-group-sep">|</span>
               <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
               <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
               <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
@@ -467,8 +527,8 @@
           </div>
 
           <div class="yaku-card" data-level="1">
-            <div class="yaku-title"><span>일색 (1단계)</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)</div>
+            <div class="yaku-title"><span>일색 (1단계)</span> <span>1점 + ★</span></div>
+            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
@@ -476,14 +536,6 @@
               <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
               <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
               <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
-            </div>
-          </div>
-
-          <div class="yaku-card" data-level="1" style="border-color:#38bdf8;">
-            <div class="yaku-title"><span style="color:#38bdf8;">★ 보너스 및 단계별 특수 룰</span></div>
-            <div class="yaku-desc" id="guide-bonus-desc">
-              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)<br>
-              • <strong>3~4단계 전용</strong>: 텐파이 시 [리치] 선언 가능(+1점), 상대 버림패로 [론] 선언 가능
             </div>
           </div>
         </div>
@@ -509,10 +561,10 @@
     let diceSpinInterval = null;
 
     const levelDescriptions = {
-      1: "🐣 <strong>1단계 (입문)</strong>: 기초적인 족보만 적용됩니다. (일색, 삼연, 육화)<br>※ 리치/론/개화/무쌍 등은 비활성화됩니다.",
-      2: "🐥 <strong>2단계 (초급)</strong>: 1단계 + 삼색, 삼동, 휘광이 추가됩니다.<br>※ 도미노의 페어(★) 맞추기 재미를 배울 수 있습니다.",
-      3: "🦅 <strong>3단계 (중급)</strong>: 2단계 + 무쌍 및 본격적인 <strong>[리치]</strong>와 <strong>[론]</strong>(점수 강탈) 룰이 개방됩니다.",
-      4: "👑 <strong>4단계 (전체 룰 - 권장)</strong>: 모든 룰 활성화 (3단계 + 최고난도 역인 <strong>개화</strong>와 <strong>연쇄</strong> 포함)"
+      1: "🐣 <strong>1단계 (입문)</strong>: 기초 족보만 적용 (일색, 삼연, 육화)<br>※ 리치/론/개화 등은 비활성화됩니다.",
+      2: "🐥 <strong>2단계 (초급)</strong>: 1단계 + 삼색, 삼동, 휘광 추가",
+      3: "🦅 <strong>3단계 (중급)</strong>: 2단계 + 무쌍 및 <strong>[리치]</strong>, 타가 버림패 <strong>[론]</strong>(직격 강탈) 활성화",
+      4: "👑 <strong>4단계 (전체 룰 - 권장)</strong>: 모든 룰 활성화 (최고난도 <strong>개화</strong> 및 <strong>연쇄</strong> 포함)"
     };
 
     function connectWebSocket() {
@@ -565,7 +617,7 @@
         const topBadge = document.getElementById('top-mode-badge');
         if (data.mode === 'single') {
           const diffKo = { 'low': '하', 'mid': '중', 'high': '상' }[data.ai_diff];
-          topBadge.innerText = `🤖 1인 모드 (난이도: ${diffKo} | ${currentRuleLevel}단계)`;
+          topBadge.innerText = `🤖 1인 모드 (${diffKo} | ${currentRuleLevel}단계)`;
         } else {
           topBadge.innerText = `👥 ${data.max_players}인 멀티플레이 (${currentRuleLevel}단계)`;
         }
@@ -580,7 +632,7 @@
           roleWrap.innerHTML = '';
 
           if (data.mode === 'single') {
-            roleWrap.innerHTML = `<span style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;">👤 나 (1P) vs 🤖 AI (2P)</span>`;
+            roleWrap.innerHTML = `<span style="background:#2563eb; color:#fff; padding:4px 12px; border-radius:16px; font-weight:bold; font-size:13px;">👤 나 (1P) vs 🤖 AI (2P)</span>`;
             document.getElementById('single-delay-wrap').style.display = 'inline';
             document.getElementById('multi-time-wrap').style.display = 'none';
             document.getElementById('sel-ai-delay').value = data.ai_delay_setting || '0';
@@ -594,7 +646,7 @@
               const isConn = data.connected_status ? data.connected_status[p] : false;
               let bg = isConn ? (isMe ? '#2563eb' : '#059669') : '#475569';
               let text = `${p}P${isMe ? '(나)' : ''}: ${isConn ? (data.ready[p] ? '준비완료' : '접속됨') : '대기중'}`;
-              roleWrap.innerHTML += `<span style="background:${bg}; color:#fff; padding:5px 12px; border-radius:20px; font-size:13px; font-weight:bold;">${text}</span>`;
+              roleWrap.innerHTML += `<span style="background:${bg}; color:#fff; padding:4px 10px; border-radius:16px; font-size:12px; font-weight:bold;">${text}</span>`;
             }
           }
 
@@ -616,7 +668,7 @@
           return;
         }
 
-        // 인게임 화면
+        // 인게임 화면 활성화
         document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'none';
         document.getElementById('game-panel').style.display = 'block';
@@ -626,11 +678,7 @@
           document.getElementById('btn-riichi').style.outline = 'none';
         }
 
-        // 목표 점수 갱신
-        const targetTxt = document.getElementById('target-score-txt');
-        if (targetTxt) targetTxt.innerText = data.target_score;
-
-        // 다인용 스코어보드 렌더링
+        // 스코어보드 렌더링
         const dynScoreboard = document.getElementById('dynamic-scoreboard');
         dynScoreboard.innerHTML = '';
         for (let p = 1; p <= data.max_players; p++) {
@@ -641,11 +689,8 @@
           const rBadge = (data.riichi && data.riichi[p]) ? '<span class="riichi-badge">리치</span>' : '';
           
           let pName = `${p}P`;
-          if (data.mode === 'single') {
-            pName = (p === 1) ? '나 (1P)' : 'AI (2P)';
-          } else if (isMe) {
-            pName = `${p}P (나)`;
-          }
+          if (data.mode === 'single') pName = (p === 1) ? '나(1P)' : 'AI(2P)';
+          else if (isMe) pName = `${p}P(나)`;
 
           dynScoreboard.innerHTML += `
             <div class="score-box ${isTurn ? 'active-turn' : ''}">
@@ -655,7 +700,7 @@
           `;
         }
 
-        // 타이머 박스 제어
+        // 타이머 제어
         const timerBox = document.getElementById('timer-box');
         if (timerBox) {
           if (data.mode === 'single') {
@@ -670,38 +715,59 @@
           }
         }
 
-        // 상대방 손패 목록 렌더링
-        const oppContainer = document.getElementById('opp-panels-container');
-        oppContainer.innerHTML = '';
-        for (let p in data.opp_hands) {
-          const oppData = data.opp_hands[p];
-          const oppNum = parseInt(p, 10);
-          const pTitle = (data.mode === 'single') ? 'AI (2P)' : `${oppNum}P`;
+        // =========================================================
+        // 마작 4방위 작탁 슬롯 렌더링 (나=하단, 타 플레이어=상/좌/우)
+        // =========================================================
+        const slotTop = document.getElementById('slot-top');
+        const slotLeft = document.getElementById('slot-left');
+        const slotRight = document.getElementById('slot-right');
+        slotTop.innerHTML = '';
+        slotLeft.innerHTML = '';
+        slotRight.innerHTML = '';
 
-          const row = document.createElement('div');
-          row.className = 'opp-row';
-          row.innerHTML = `<div class="opp-header"><span>${pTitle}의 패</span><span>(${oppData.count}장)</span></div>`;
-          
-          const handsDiv = document.createElement('div');
-          handsDiv.className = 'hand-container';
-          if (data.show_all && oppData.tiles) {
-            oppData.tiles.forEach(t => handsDiv.appendChild(createTileEl(t, false, false, false, false)));
-          } else {
-            for (let i = 0; i < oppData.count; i++) {
-              handsDiv.innerHTML += '<div class="tile tile-back"></div>';
-            }
-          }
-          row.appendChild(handsDiv);
-          oppContainer.appendChild(row);
+        // 플레이어 상대 위치 계산
+        // 2인 모드: 상대방은 상단
+        // 3인 모드: 상대 1=좌측, 상대 2=우측 (혹은 좌/상)
+        // 4인 모드: 내 다음=우측, 맞은편=상단, 이전=좌측 (마작 반시계 방위)
+        let otherPlayers = [];
+        for (let p = 1; p <= data.max_players; p++) {
+          if (p !== myPlayer) otherPlayers.push(p);
         }
 
-        // 바닥패 알림 배지
+        if (data.max_players === 2) {
+          renderOppSlot(slotTop, otherPlayers[0], data, 'horizontal');
+        } else if (data.max_players === 3) {
+          renderOppSlot(slotLeft, otherPlayers[0], data, 'vertical');
+          renderOppSlot(slotRight, otherPlayers[1], data, 'vertical');
+        } else if (data.max_players === 4) {
+          // 마작 순서 기준 방위 배정
+          const rightP = (myPlayer % 4) + 1;
+          const topP = ((myPlayer + 1) % 4) + 1;
+          const leftP = ((myPlayer + 2) % 4) + 1;
+          renderOppSlot(slotRight, rightP, data, 'vertical');
+          renderOppSlot(slotTop, topP, data, 'horizontal');
+          renderOppSlot(slotLeft, leftP, data, 'vertical');
+        }
+
+        // 중앙 버림패 렌더링
+        const discardsDiv = document.getElementById('discards');
+        discardsDiv.innerHTML = '';
+        data.discards.forEach((t, idx) => {
+          const isLast = (idx === data.discards.length - 1);
+          const tileEl = createTileEl(t, false, false, isLast, false);
+          if (isMyTurn && currentPhase === 'draw' && data.discards.length > 0) {
+            tileEl.classList.add('selectable-discard');
+            tileEl.onclick = () => actionDraw(t.id);
+          }
+          discardsDiv.appendChild(tileEl);
+        });
+
+        // 버림패 뱃지
         const takenBadge = document.getElementById('last-taken-badge');
         if (data.last_taken_discard) {
           const byWhom = (data.last_taken_discard.by === myPlayer) ? '내가' : `${data.last_taken_discard.by}P가`;
-          const t = data.last_taken_discard.tile;
           takenBadge.style.display = 'inline-block';
-          takenBadge.innerText = `${byWhom} [${t.top}/${t.bottom}] 주워감`;
+          takenBadge.innerText = `${byWhom} 주워감`;
         } else {
           takenBadge.style.display = 'none';
         }
@@ -716,74 +782,7 @@
           discardBadge.style.display = 'none';
         }
 
-        const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
-        document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
-
-        // 상태바 텍스트
-        if (data.status_notice) {
-          document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-size:15px; font-weight:bold;">${data.status_notice}</span>`;
-        } else if (data.show_all) {
-          document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
-        } else if (isMyTurn) {
-          if (currentPhase === 'draw') {
-            if (data.can_ron) {
-              document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">내 차례: [론 선언]이 가능합니다! 또는 [패 뽑기]를 진행하세요</span>`;
-            } else {
-              document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
-            }
-          } else {
-            if (riichiPending) {
-              document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
-            } else {
-              document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
-            }
-          }
-        } else {
-          const oppName = (data.mode === 'single') ? 'AI' : `${data.current_turn}P`;
-          document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
-        }
-
-        document.getElementById('deck-count').innerText = data.deck_count;
-        document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
-
-        const btnRiichi = document.getElementById('btn-riichi');
-        if (currentRuleLevel >= 3) {
-          btnRiichi.style.display = 'inline-block';
-          if (myRiichiActive) {
-            btnRiichi.disabled = true;
-            btnRiichi.innerText = '리치 완료';
-            btnRiichi.style.outline = 'none';
-          } else {
-            btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard');
-            btnRiichi.innerText = riichiPending ? '리치 취소' : '리치 선언';
-          }
-        } else {
-          btnRiichi.style.display = 'none';
-        }
-
-        document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
-        document.getElementById('ron-modal').style.display = (currentRuleLevel >= 3 && data.can_ron) ? 'block' : 'none';
-
-        const yakuBadge = document.getElementById('yaku-badge');
-        if (data.current_yaku) {
-          yakuBadge.style.display = 'inline-block';
-          yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.base_score}점 + ★ ${data.current_yaku.stars}개)`;
-        } else {
-          yakuBadge.style.display = 'none';
-        }
-
-        const discardsDiv = document.getElementById('discards');
-        discardsDiv.innerHTML = '';
-        data.discards.forEach((t, idx) => {
-          const isLast = (idx === data.discards.length - 1);
-          const tileEl = createTileEl(t, false, false, isLast, false);
-          if (canTakeFromDiscard) {
-            tileEl.classList.add('selectable-discard');
-            tileEl.onclick = () => actionDraw(t.id);
-          }
-          discardsDiv.appendChild(tileEl);
-        });
-
+        // 하단 내 손패 렌더링
         const myHandDiv = document.getElementById('my-hand');
         myHandDiv.innerHTML = '';
         currentHand.forEach((t, idx) => {
@@ -826,6 +825,61 @@
           myHandDiv.appendChild(wrap);
         });
 
+        // 상태바 텍스트
+        if (data.status_notice) {
+          document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8;">${data.status_notice}</span>`;
+        } else if (data.show_all) {
+          document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 게임 종료!' : '라운드 종료';
+        } else if (isMyTurn) {
+          if (currentPhase === 'draw') {
+            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
+          } else {
+            if (riichiPending) {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">🔥 [리치 선언 중] 버릴 패를 선택하세요!</span>`;
+            } else {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
+            }
+          }
+        } else {
+          const oppName = (data.mode === 'single') ? 'AI' : `${data.current_turn}P`;
+          document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
+        }
+
+        document.getElementById('deck-count').innerText = data.deck_count;
+        document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
+
+        // 리치 버튼
+        const btnRiichi = document.getElementById('btn-riichi');
+        if (currentRuleLevel >= 3) {
+          btnRiichi.style.display = 'inline-block';
+          if (myRiichiActive) {
+            btnRiichi.disabled = true;
+            btnRiichi.innerText = '리치 완료';
+            btnRiichi.style.outline = 'none';
+          } else {
+            btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard');
+            btnRiichi.innerText = riichiPending ? '리치 취소' : '리치 선언';
+          }
+        } else {
+          btnRiichi.style.display = 'none';
+        }
+
+        // 쯔모 완성 버튼 (오직 자기 턴 discard 단계에서만)
+        document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
+
+        // 인터럽트 론 버튼 (타가 버림패로 내 5장+1장이 완성되면 차례 무관하게 즉시 발동)
+        const btnRon = document.getElementById('btn-ron-interrupt');
+        btnRon.style.display = data.can_ron ? 'inline-block' : 'none';
+
+        const yakuBadge = document.getElementById('yaku-badge');
+        if (data.current_yaku) {
+          yakuBadge.style.display = 'inline-block';
+          yakuBadge.innerText = `[${data.current_yaku.name}] (${data.current_yaku.base_score}점 + ★ ${data.current_yaku.stars}개)`;
+        } else {
+          yakuBadge.style.display = 'none';
+        }
+
+        // 라운드 정산 패널
         const readyPanel = document.getElementById('ready-panel');
         if (data.show_all) {
           readyPanel.style.display = 'block';
@@ -837,7 +891,7 @@
           if (data.settlements && data.settlements.length > 0) {
             data.settlements.forEach(s => {
               const card = document.createElement('div');
-              card.className = `settlement-card ${s.type === '겸사겸사' ? 'incidental' : 'win'}`;
+              card.className = 'settlement-card';
               card.innerText = s.text;
               setList.appendChild(card);
             });
@@ -845,14 +899,14 @@
 
           const btnReady = document.getElementById('btn-ready');
           if (isGameOver) {
-            btnReady.innerText = '게임 초기화 (새 게임)';
+            btnReady.innerText = '새 게임 시작';
             btnReady.style.background = '#e11d48';
             btnReady.disabled = false;
             document.getElementById('ready-status').innerText = '클릭 시 로비로 돌아갑니다.';
           } else {
             const myReady = data.ready[myPlayer];
             btnReady.innerText = myReady ? '준비 완료 (대기 중)' : '다음 판 준비';
-            btnReady.style.background = '#10b981';
+            btnReady.style.background = '#059669';
             btnReady.disabled = (data.mode !== 'single' && myReady);
             document.getElementById('ready-status').innerText = (data.mode === 'single') ? '클릭 시 즉시 다음 판을 시작합니다.' : '모든 플레이어가 준비 완료 시 다음 판이 시작됩니다.';
           }
@@ -864,6 +918,35 @@
       ws.onclose = () => {
         setTimeout(connectWebSocket, 1000);
       };
+    }
+
+    // 마작 테이블 슬롯에 상대방 손패 렌더링 보조 함수
+    function renderOppSlot(container, pNum, data, orientation) {
+      if (!pNum || !data.opp_hands[pNum]) return;
+      const oppData = data.opp_hands[pNum];
+      const pTitle = (data.mode === 'single') ? 'AI(2P)' : `${pNum}P`;
+
+      const tag = document.createElement('div');
+      tag.className = 'table-player-tag';
+      tag.innerText = `${pTitle} (${oppData.count}장)`;
+      container.appendChild(tag);
+
+      const handsDiv = document.createElement('div');
+      handsDiv.style.display = 'flex';
+      handsDiv.style.flexDirection = (orientation === 'vertical') ? 'column' : 'row';
+      handsDiv.style.gap = '3px';
+      handsDiv.style.alignItems = 'center';
+
+      if (data.show_all && oppData.tiles) {
+        oppData.tiles.forEach(t => handsDiv.appendChild(createTileEl(t, false, false, false, false)));
+      } else {
+        for (let i = 0; i < oppData.count; i++) {
+          const b = document.createElement('div');
+          b.className = (orientation === 'vertical') ? 'tile-mini-back side' : 'tile-mini-back';
+          handsDiv.appendChild(b);
+        }
+      }
+      container.appendChild(handsDiv);
     }
 
     setInterval(() => {
@@ -884,6 +967,7 @@
 
     connectWebSocket();
 
+    // 주사위 롤링 연출 (1P, 2P 면 스핀)
     function showPlayerDiceRoll(diceEv) {
       const modal = document.getElementById('dice-modal');
       const diceEl = document.getElementById('player-dice-face');
@@ -901,13 +985,12 @@
         diceEl.innerText = `${currentShow}P`;
       }, 70);
 
-      // 0.9초 굴림 + 0.9초 당첨 표시 후 모달 닫힘 (총 1.8초)
       setTimeout(() => {
         clearInterval(diceSpinInterval);
         diceEl.className = 'player-dice winner-pulse';
         const pLabel = (lastSelectedMode === 'single' && diceEv.starter === 2) ? 'AI(2P)' : `${diceEv.starter}P`;
         diceEl.innerText = `${diceEv.starter}P`;
-        resTxt.innerHTML = `선공 당첨: <strong style="color:#facc15; font-size:18px;">[${pLabel}] 선공 확정!</strong>`;
+        resTxt.innerHTML = `선공: <strong style="color:#facc15; font-size:16px;">[${pLabel}] 선공 확정!</strong>`;
 
         setTimeout(() => {
           modal.style.display = 'none';
@@ -916,6 +999,7 @@
       }, 900);
     }
 
+    // 화면 중앙 메시지 박스 트리거
     function triggerActionBoxModal(banner) {
       const modal = document.getElementById('action-box-modal');
       const titleEl = document.getElementById('box-title');
@@ -933,17 +1017,18 @@
 
       if (banner.type === 'riichi') {
         modal.classList.add('box-riichi', 'anim-riichi-fade');
+        // 리치는 1초간 유지
         modalTimer = setTimeout(() => {
           modal.style.display = 'none';
           modal.className = '';
-        }, 800);
+        }, 1400);
       } else {
         const isTsumo = (banner.type === 'tsumo');
         modal.classList.add(isTsumo ? 'box-tsumo' : 'box-ron', 'anim-win-fade');
         modalTimer = setTimeout(() => {
           modal.style.display = 'none';
           modal.className = '';
-        }, 1400);
+        }, 1800);
       }
     }
 
@@ -1052,9 +1137,9 @@
       riichiPending = !riichiPending;
       const btn = document.getElementById('btn-riichi');
       if (riichiPending) {
-        btn.style.outline = '3px solid #facc15';
+        btn.style.outline = '2px solid #facc15';
         btn.innerText = '리치 취소';
-        document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
+        document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">🔥 [리치 선언 중] 버릴 패를 선택하세요!</span>`;
       } else {
         btn.style.outline = 'none';
         btn.innerText = '리치 선언';
