@@ -39,7 +39,7 @@
     @keyframes modalFadeRiichi {
       0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
       15% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
-      80% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); } /* 1초간 유지 */
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
       100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
     }
 
@@ -115,24 +115,25 @@
       border: 2px solid #23354d; border-radius: 12px;
       display: grid;
       grid-template-rows: auto 1fr auto;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: 85px 1fr 85px;
       padding: 6px; gap: 4px; margin-bottom: 6px;
     }
 
-    /* 상단 플레이어 (마주보는 사람) */
+    /* 상단 플레이어 */
     .table-top {
       grid-column: 1 / 4; grid-row: 1;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 48px;
     }
-    /* 좌측 플레이어 */
+    /* 좌측 플레이어 (가로로 눕혀 배치) */
     .table-left {
       grid-column: 1; grid-row: 2;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; width: 55px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
-    /* 우측 플레이어 */
+    /* 우측 플레이어 (가로로 눕혀 배치) */
     .table-right {
       grid-column: 3; grid-row: 2;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; width: 55px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     /* 중앙 바닥패 (버림패 풀) */
     .table-center {
@@ -165,6 +166,13 @@
     .tile.last-discard { border: 2px solid #facc15; box-shadow: 0 0 8px #facc15; }
     .tile.selectable-discard { border: 2px dashed #4ade80 !important; cursor: pointer !important; }
 
+    /* 좌/우측 플레이어 공개 타일 90도 회전(눕힘) */
+    .tile.sideways {
+      width: 32px; height: 50px;
+      margin: 2px 0;
+    }
+    .tile.sideways .tile-half { font-size: 12px; height: 21px; }
+
     .tile-ctrl-btn {
       position: absolute; top: 0; background: #1e293b; color: #cbd5e1;
       border: 1px solid #475569; border-radius: 3px; width: 12px; height: 12px;
@@ -188,7 +196,7 @@
       width: 24px; height: 38px; border-radius: 3px;
     }
     .tile-mini-back.side {
-      width: 38px; height: 22px; margin: 2px 0;
+      width: 36px; height: 20px; margin: 2px 0;
     }
 
     .action-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 6px 0; }
@@ -207,8 +215,17 @@
     .discards-box .tile { width: 30px; height: 50px; }
     .discards-box .tile-half { font-size: 13px; height: 22px; }
 
-    .taken-notice-badge { background: #854d0e; color: #fef08a; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
-    .discard-notice-badge { background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .taken-notice-badge { background: #854d0e; color: #fef08a; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-left: 4px; }
+    .discard-notice-badge { background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-left: 4px; }
+
+    /* 라운드 종료 오버레이 모달 (작탁 위에 바로 떠서 스크롤 방지) */
+    #round-settlement-modal {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(9, 14, 26, 0.95); border: 2px solid #facc15; border-radius: 12px;
+      padding: 16px 20px; width: 90%; max-width: 480px; z-index: 50; text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.9); display: none;
+    }
+    .settlement-card { background: #131d31; border-left: 4px solid #38bdf8; border-radius: 4px; padding: 6px 10px; margin: 4px 0; text-align: left; font-size: 12px; }
 
     .yaku-guide-wrap { margin-top: 14px; background: #090e1a; border-radius: 10px; padding: 12px; border: 1px solid #1e293b; }
     .yaku-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
@@ -239,8 +256,6 @@
       padding: 14px 10px; text-align: center; cursor: pointer;
     }
     .mode-btn-card:hover { transform: translateY(-3px); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); }
-
-    .settlement-card { background: #0f172a; border-left: 3px solid #38bdf8; border-radius: 4px; padding: 6px 10px; margin: 4px 0; text-align: left; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -364,23 +379,25 @@
         <!-- 테이블 상단 플레이어 -->
         <div class="table-top" id="slot-top"></div>
 
-        <!-- 테이블 좌측 플레이어 -->
+        <!-- 테이블 좌측 플레이어 (눕혀서 정렬) -->
         <div class="table-left" id="slot-left"></div>
 
         <!-- 중앙 버림패 (바닥패) 영역 -->
         <div class="table-center">
-          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom: 2px;">
-            <span style="font-size: 10px; color: #94a3b8; font-weight: bold;">
+          <div style="display:flex; justify-content:space-between; width:100%; align-items:center; position: absolute; top: 4px; left: 0; padding: 0 8px;">
+            <!-- 왼쪽 상단: 바닥 버림패 정보 및 주워간 패 -->
+            <span style="font-size: 11px; color: #94a3b8; font-weight: bold;">
               버린 패 (바닥)
               <span id="last-taken-badge" class="taken-notice-badge" style="display:none;"></span>
               <span id="last-discard-badge" class="discard-notice-badge" style="display:none;"></span>
             </span>
-            <span style="font-size: 10px; color:#cbd5e1;">패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
+            <!-- 오른쪽 상단: 패산 남은 개수 -->
+            <span style="font-size: 11px; color:#cbd5e1; font-weight: bold;">패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
           </div>
-          <div class="discards-box" id="discards"></div>
+          <div class="discards-box" id="discards" style="margin-top: 18px;"></div>
         </div>
 
-        <!-- 테이블 우측 플레이어 -->
+        <!-- 테이블 우측 플레이어 (눕혀서 정렬) -->
         <div class="table-right" id="slot-right"></div>
 
         <!-- 테이블 하단 (나) -->
@@ -393,25 +410,34 @@
           <div class="hand-container" id="my-hand"></div>
         </div>
 
+        <!-- 라운드 정산 중앙 오버레이 모달 (작탁 중앙에 오버레이되어 버튼 가림 해결) -->
+        <div id="round-settlement-modal">
+          <h3 id="panel-title" style="margin:0 0 8px 0; color:#facc15; font-size: 15px;">🏆 라운드 종료 (점수 정산)</h3>
+          <div id="settlement-list" style="margin-bottom: 10px; max-height: 140px; overflow-y: auto;"></div>
+          <div style="text-align:center;">
+            <button id="btn-ready" onclick="actionNextStep()" style="background:#059669; font-size: 14px; padding: 8px 24px; box-shadow: 0 0 10px rgba(5,150,105,0.6);">다음 판 준비</button>
+            <div id="ready-status" style="font-size: 11px; color: #94a3b8; margin-top: 4px;"></div>
+          </div>
+        </div>
+
       </div>
 
       <!-- 내 조작 액션 패널 -->
       <div class="action-panel">
         <button id="btn-draw" onclick="actionDraw(null)" disabled>패 뽑기</button>
         <button id="btn-riichi" class="btn-riichi" onclick="toggleRiichiMode()" disabled>리치 선언</button>
-        <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성(쯔모)!</button>
-        <!-- 타가 패 직격 론 버튼 (언제든 조건 만족 시 인터럽트 활성화) -->
-        <button id="btn-ron-interrupt" class="btn-ron" onclick="actionRon('steal')" style="display:none; animation: pulse 0.7s infinite alternate;">론 (강탈 완성)!</button>
-      </div>
-
-      <!-- 라운드 정산 패널 -->
-      <div id="ready-panel" style="display:none; margin-top: 8px; background: #090e1a; padding: 10px; border-radius: 8px;">
-        <h3 id="panel-title" style="margin:0 0 6px 0; text-align:center; color:#facc15; font-size: 14px;">🏆 라운드 종료 (패 공개 및 점수 정산)</h3>
-        <div id="settlement-list" style="margin-bottom: 8px;"></div>
-        <div style="text-align:center;">
-          <button id="btn-ready" onclick="actionNextStep()" style="background:#059669; font-size: 13px; padding: 6px 18px;">다음 판 준비</button>
-          <div id="ready-status" style="font-size: 11px; color: #94a3b8; margin-top: 4px;"></div>
+        
+        <!-- 내 턴 완성 (쯔모) -->
+        <button id="btn-tsumo" class="btn-win" onclick="actionTsumo()" style="display:none;">완성 (쯔모)!</button>
+        
+        <!-- 내 턴일 때 바닥 버림패로 완성 가능한 경우 론 vs 완성 선택창 -->
+        <div id="my-turn-ron-box" style="display:none; gap:6px;">
+          <button class="btn-ron" onclick="actionRon('steal')">론 (상대 강탈)</button>
+          <button class="btn-win" onclick="actionRon('direct')">완성 (공급처)</button>
         </div>
+
+        <!-- 타인 턴 인터럽트 론 버튼 -->
+        <button id="btn-ron-interrupt" class="btn-ron" onclick="actionRon('steal')" style="display:none; animation: pulse 0.7s infinite alternate;">론 (강탈 완성)!</button>
       </div>
 
       <!-- 족보 안내창 -->
@@ -622,7 +648,7 @@
           topBadge.innerText = `👥 ${data.max_players}인 멀티플레이 (${currentRuleLevel}단계)`;
         }
 
-        // 로비 제어
+        // 로비 화면
         if (!data.game_started) {
           document.getElementById('mode-panel').style.display = 'none';
           document.getElementById('lobby-panel').style.display = 'block';
@@ -725,10 +751,6 @@
         slotLeft.innerHTML = '';
         slotRight.innerHTML = '';
 
-        // 플레이어 상대 위치 계산
-        // 2인 모드: 상대방은 상단
-        // 3인 모드: 상대 1=좌측, 상대 2=우측 (혹은 좌/상)
-        // 4인 모드: 내 다음=우측, 맞은편=상단, 이전=좌측 (마작 반시계 방위)
         let otherPlayers = [];
         for (let p = 1; p <= data.max_players; p++) {
           if (p !== myPlayer) otherPlayers.push(p);
@@ -740,7 +762,6 @@
           renderOppSlot(slotLeft, otherPlayers[0], data, 'vertical');
           renderOppSlot(slotRight, otherPlayers[1], data, 'vertical');
         } else if (data.max_players === 4) {
-          // 마작 순서 기준 방위 배정
           const rightP = (myPlayer % 4) + 1;
           const topP = ((myPlayer + 1) % 4) + 1;
           const leftP = ((myPlayer + 2) % 4) + 1;
@@ -748,6 +769,9 @@
           renderOppSlot(slotTop, topP, data, 'horizontal');
           renderOppSlot(slotLeft, leftP, data, 'vertical');
         }
+
+        // 중앙 패산 개수 갱신
+        document.getElementById('deck-count').innerText = data.deck_count;
 
         // 중앙 버림패 렌더링
         const discardsDiv = document.getElementById('discards');
@@ -762,12 +786,13 @@
           discardsDiv.appendChild(tileEl);
         });
 
-        // 버림패 뱃지
+        // 상단 버림패 정보 배지 (무엇을 주워갔는지 타일 숫자까지 정확히 표시)
         const takenBadge = document.getElementById('last-taken-badge');
         if (data.last_taken_discard) {
           const byWhom = (data.last_taken_discard.by === myPlayer) ? '내가' : `${data.last_taken_discard.by}P가`;
+          const t = data.last_taken_discard.tile;
           takenBadge.style.display = 'inline-block';
-          takenBadge.innerText = `${byWhom} 주워감`;
+          takenBadge.innerText = `${byWhom} [${t.top}/${t.bottom}] 주워감`;
         } else {
           takenBadge.style.display = 'none';
         }
@@ -832,7 +857,11 @@
           document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 게임 종료!' : '라운드 종료';
         } else if (isMyTurn) {
           if (currentPhase === 'draw') {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
+            if (data.deck_count === 0) {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">패산 소진! 바닥 패를 클릭하여 가져오세요</span>`;
+            } else {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
+            }
           } else {
             if (riichiPending) {
               document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">🔥 [리치 선언 중] 버릴 패를 선택하세요!</span>`;
@@ -845,8 +874,8 @@
           document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
         }
 
-        document.getElementById('deck-count').innerText = data.deck_count;
-        document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
+        // 패 뽑기 버튼 (패산이 0장이고 바닥패가 있으면 뽑기 버튼 비활성화)
+        document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw' && data.deck_count > 0);
 
         // 리치 버튼
         const btnRiichi = document.getElementById('btn-riichi');
@@ -864,12 +893,25 @@
           btnRiichi.style.display = 'none';
         }
 
-        // 쯔모 완성 버튼 (오직 자기 턴 discard 단계에서만)
+        // 쯔모 완성 버튼 (오직 자기 턴 discard 단계에서)
         document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
 
-        // 인터럽트 론 버튼 (타가 버림패로 내 5장+1장이 완성되면 차례 무관하게 즉시 발동)
-        const btnRon = document.getElementById('btn-ron-interrupt');
-        btnRon.style.display = data.can_ron ? 'inline-block' : 'none';
+        // 내 턴일 때 바닥 버림패로 완성 가능한 경우 론 vs 완성 선택창
+        const myTurnRonBox = document.getElementById('my-turn-ron-box');
+        const btnRonInterrupt = document.getElementById('btn-ron-interrupt');
+        
+        if (data.can_ron) {
+          if (isMyTurn && currentPhase === 'draw') {
+            myTurnRonBox.style.display = 'inline-flex';
+            btnRonInterrupt.style.display = 'none';
+          } else {
+            myTurnRonBox.style.display = 'none';
+            btnRonInterrupt.style.display = 'inline-block';
+          }
+        } else {
+          myTurnRonBox.style.display = 'none';
+          btnRonInterrupt.style.display = 'none';
+        }
 
         const yakuBadge = document.getElementById('yaku-badge');
         if (data.current_yaku) {
@@ -879,12 +921,12 @@
           yakuBadge.style.display = 'none';
         }
 
-        // 라운드 정산 패널
-        const readyPanel = document.getElementById('ready-panel');
+        // 라운드 정산 중앙 오버레이 모달 (작탁 중앙에 오버레이)
+        const roundModal = document.getElementById('round-settlement-modal');
         if (data.show_all) {
-          readyPanel.style.display = 'block';
+          roundModal.style.display = 'block';
           const isGameOver = (data.phase === 'game_over');
-          document.getElementById('panel-title').innerText = isGameOver ? '👑 최종 승리 결정!' : '🏆 라운드 종료 (패 공개 및 점수 정산)';
+          document.getElementById('panel-title').innerText = isGameOver ? '👑 최종 승리 결정!' : '🏆 라운드 종료 (점수 정산)';
           
           const setList = document.getElementById('settlement-list');
           setList.innerHTML = '';
@@ -911,7 +953,7 @@
             document.getElementById('ready-status').innerText = (data.mode === 'single') ? '클릭 시 즉시 다음 판을 시작합니다.' : '모든 플레이어가 준비 완료 시 다음 판이 시작됩니다.';
           }
         } else {
-          readyPanel.style.display = 'none';
+          roundModal.style.display = 'none';
         }
       };
 
@@ -920,7 +962,7 @@
       };
     }
 
-    // 마작 테이블 슬롯에 상대방 손패 렌더링 보조 함수
+    // 마작 테이블 슬롯에 상대방 손패 렌더링 (좌/우측 패 가로 눕힘 적용)
     function renderOppSlot(container, pNum, data, orientation) {
       if (!pNum || !data.opp_hands[pNum]) return;
       const oppData = data.opp_hands[pNum];
@@ -934,11 +976,15 @@
       const handsDiv = document.createElement('div');
       handsDiv.style.display = 'flex';
       handsDiv.style.flexDirection = (orientation === 'vertical') ? 'column' : 'row';
-      handsDiv.style.gap = '3px';
+      handsDiv.style.gap = '2px';
       handsDiv.style.alignItems = 'center';
 
       if (data.show_all && oppData.tiles) {
-        oppData.tiles.forEach(t => handsDiv.appendChild(createTileEl(t, false, false, false, false)));
+        oppData.tiles.forEach(t => {
+          const el = createTileEl(t, false, false, false, false);
+          if (orientation === 'vertical') el.classList.add('sideways');
+          handsDiv.appendChild(el);
+        });
       } else {
         for (let i = 0; i < oppData.count; i++) {
           const b = document.createElement('div');
@@ -967,7 +1013,6 @@
 
     connectWebSocket();
 
-    // 주사위 롤링 연출 (1P, 2P 면 스핀)
     function showPlayerDiceRoll(diceEv) {
       const modal = document.getElementById('dice-modal');
       const diceEl = document.getElementById('player-dice-face');
@@ -999,7 +1044,6 @@
       }, 900);
     }
 
-    // 화면 중앙 메시지 박스 트리거
     function triggerActionBoxModal(banner) {
       const modal = document.getElementById('action-box-modal');
       const titleEl = document.getElementById('box-title');
@@ -1017,7 +1061,6 @@
 
       if (banner.type === 'riichi') {
         modal.classList.add('box-riichi', 'anim-riichi-fade');
-        // 리치는 1초간 유지
         modalTimer = setTimeout(() => {
           modal.style.display = 'none';
           modal.className = '';
