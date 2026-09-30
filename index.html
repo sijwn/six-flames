@@ -160,19 +160,19 @@
         </div>
       </div>
 
-      <!-- 1인 모드 난이도 선택창 -->
+      <!-- 1인 모드 난이도 선택창 (기본값 고급으로 설정) -->
       <div id="single-diff-setup" style="display: none; background: #0f172a; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto; border: 1px solid #334155;">
         <h3 style="margin-top: 0; color: #facc15;">🤖 AI 난이도 설정</h3>
         <div style="margin: 15px 0;">
           <label><input type="radio" name="ai-diff" value="low"> 초급 (하)</label> &nbsp;&nbsp;
-          <label><input type="radio" name="ai-diff" value="mid" checked> 중급 (중)</label> &nbsp;&nbsp;
-          <label><input type="radio" name="ai-diff" value="high"> 고급 (상)</label>
+          <label><input type="radio" name="ai-diff" value="mid"> 중급 (중)</label> &nbsp;&nbsp;
+          <label><input type="radio" name="ai-diff" value="high" checked> 고급 (상)</label>
         </div>
         <button onclick="startSingleMode()" style="background: #38bdf8; width: 100%;">1인 모드 시작하기</button>
       </div>
     </div>
 
-    <!-- 2. 게임 설정 로비 화면 (양측 조작 및 준비) -->
+    <!-- 2. 게임 설정 로비 화면 -->
     <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
       <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
       
@@ -180,21 +180,37 @@
         <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;"></span>
       </div>
 
-      <p style="color:#94a3b8; font-size:13px;">목표 점수와 턴 제한 시간을 조작한 후 준비 완료를 눌러주세요.</p>
+      <p style="color:#94a3b8; font-size:13px;" id="lobby-subtext">설정을 조작한 후 준비 완료를 눌러주세요.</p>
+      
       <div id="lobby-settings" style="margin: 15px 0;">
         <label>목표 점수: </label>
         <input type="number" id="inp-target" value="10" min="1" max="999" 
                oninput="sendSettings()" 
                style="width: 70px; padding: 4px; text-align: center; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff; font-weight: bold; margin-right: 15px;">
         
-        <label>턴 제한 시간: </label>
-        <select id="sel-time" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
-          <option value="30">30초</option>
-          <option value="60" selected>1분</option>
-          <option value="120">2분</option>
-          <option value="180">3분</option>
-          <option value="0">무제한</option>
-        </select>
+        <!-- 1인 모드 시: AI 딜레이 드롭다운 -->
+        <span id="single-delay-wrap" style="display:none;">
+          <label>AI 딜레이: </label>
+          <select id="sel-ai-delay" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
+            <option value="0" selected>기본 (0초)</option>
+            <option value="0.5">+0.5초</option>
+            <option value="1.0">+1.0초</option>
+            <option value="1.5">+1.5초</option>
+            <option value="2.0">+2.0초</option>
+          </select>
+        </span>
+
+        <!-- 2인 모드 시: 턴 제한 시간 드롭다운 -->
+        <span id="multi-time-wrap">
+          <label>턴 제한 시간: </label>
+          <select id="sel-time" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
+            <option value="30">30초</option>
+            <option value="60" selected>1분</option>
+            <option value="120">2분</option>
+            <option value="180">3분</option>
+            <option value="0">무제한</option>
+          </select>
+        </span>
       </div>
       <button id="btn-lobby-ready" onclick="actionLobbyReady()" style="background:#10b981; font-size:16px; padding:12px 28px;">게임 준비 완료</button>
       <div id="lobby-status" style="margin-top:10px; font-size:13px; color:#cbd5e1;"></div>
@@ -271,7 +287,7 @@
           <!-- 무쌍 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>무쌍</span> <span>9점 (3+★6)</span></div>
-            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤[cite: 4]</div>
+            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -313,7 +329,7 @@
           <!-- 육화 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>육화</span> <span>6점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속[cite: 4]</div>
+            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
@@ -328,7 +344,7 @@
           <!-- 삼동 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>삼동</span> <span>5점 + ★보너스</span></div>
-            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성[cite: 4]</div>
+            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
@@ -344,7 +360,7 @@
           <!-- 휘광 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>휘광</span> <span>5점 (보너스 무시)</span></div>
-            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성[cite: 4]</div>
+            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
@@ -358,7 +374,7 @@
           <!-- 삼연 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>삼연</span> <span>3점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌[cite: 4]</div>
+            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
@@ -373,7 +389,7 @@
           <!-- 삼색 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>삼색</span> <span>3점 (겸사겸사 전용)</span></div>
-            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)[cite: 4]</div>
+            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
@@ -387,7 +403,7 @@
           <!-- 동형 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>동형 (하우스 룰)</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">위쪽 숫자가 1이 1개, 2가 2개, 3이 3개 형태 (아래 무관)[cite: 4]</div>
+            <div class="yaku-desc">위쪽 숫자가 1이 1개, 2가 2개, 3이 3개 형태 (아래 무관)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half m-hatch">?</div></div>
               <span class="m-group-sep">|</span>
@@ -403,14 +419,14 @@
           <!-- 일색 -->
           <div class="yaku-card">
             <div class="yaku-title"><span>일색</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)[cite: 4]</div>
+            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
               <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half m-hatch">?</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
             </div>
           </div>
 
@@ -418,8 +434,8 @@
           <div class="yaku-card" style="border-color:#38bdf8;">
             <div class="yaku-title"><span style="color:#38bdf8;">★ 보너스 & 리치</span> <span>각 +1점</span></div>
             <div class="yaku-desc">
-              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)[cite: 4]<br>
-              • <strong>리치</strong>: 텐파이 상태에서 선언 후 완성 시 +1점[cite: 2]
+              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)<br>
+              • <strong>리치</strong>: 텐파이 상태에서 선언 후 완성 시 +1점
             </div>
             <div class="visual-example" style="justify-content: flex-start; gap: 8px;">
               <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
@@ -506,24 +522,35 @@
         topBadge.innerText = `👥 2인 모드 (온라인 대전)`;
       }
 
+      // 로비 화면 제어
       if (!data.game_started) {
         document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'block';
         document.getElementById('game-panel').style.display = 'none';
 
         const roleEl = document.getElementById('lobby-my-role');
+        const singleDelayWrap = document.getElementById('single-delay-wrap');
+        const multiTimeWrap = document.getElementById('multi-time-wrap');
+
         if (data.mode === 'single') {
           roleEl.innerText = `👤 나 (1P) vs 🤖 AI (2P)`;
           document.getElementById('lobby-heading').innerText = '🔥 1인 연습 대전 준비';
+          document.getElementById('lobby-subtext').innerText = '목표 점수와 AI 딜레이를 조작한 후 게임을 시작하세요.';
+          singleDelayWrap.style.display = 'inline';
+          multiTimeWrap.style.display = 'none';
+          document.getElementById('sel-ai-delay').value = data.ai_delay_setting || '0';
         } else {
           roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
           document.getElementById('lobby-heading').innerText = '🔥 2인 온라인 대전 로비';
+          document.getElementById('lobby-subtext').innerText = '목표 점수와 턴 제한 시간을 조작한 후 준비 완료를 눌러주세요.';
+          singleDelayWrap.style.display = 'none';
+          multiTimeWrap.style.display = 'inline';
+          document.getElementById('sel-time').value = data.time_limit;
         }
 
         if (document.activeElement !== document.getElementById('inp-target')) {
           document.getElementById('inp-target').value = data.target_score;
         }
-        document.getElementById('sel-time').value = data.time_limit;
 
         document.getElementById('btn-lobby-ready').disabled = data.ready[myPlayer];
         document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 시작 / 준비';
@@ -575,7 +602,9 @@
       }
 
       const timerBox = document.getElementById('timer-box');
-      if (data.time_limit > 0) {
+      if (data.mode === 'single') {
+        timerBox.style.display = 'none';
+      } else if (data.time_limit > 0) {
         timerBox.style.display = 'inline-flex';
         document.getElementById('timer-val').innerText = data.time_left;
         if (data.time_left <= 10) timerBox.classList.add('timer-warn');
@@ -587,9 +616,9 @@
       const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
       document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
 
-      // 상태바 메시지 우선순위 (AI 알림 > 게임 오버/라운드 종료 > 내 턴 액션 안내)
+      // 상태 안내 바 렌더링
       if (data.status_notice) {
-        document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-weight:bold;">${data.status_notice}</span>`;
+        document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-size:15px; font-weight:bold;">${data.status_notice}</span>`;
       } else if (data.show_all) {
         document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
       } else if (isMyTurn) {
@@ -841,7 +870,8 @@
       let scoreVal = parseInt(document.getElementById('inp-target').value, 10);
       if (isNaN(scoreVal) || scoreVal <= 0) scoreVal = 1;
       const timeVal = document.getElementById('sel-time').value;
-      ws.send(JSON.stringify({ action: 'set_settings', score: scoreVal, time: timeVal }));
+      const aiDelayVal = document.getElementById('sel-ai-delay').value;
+      ws.send(JSON.stringify({ action: 'set_settings', score: scoreVal, time: timeVal, ai_delay: aiDelayVal }));
     }
   </script>
 </body>
