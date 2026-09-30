@@ -5,6 +5,7 @@ from itertools import combinations, permutations
 from collections import Counter
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from starlette.websockets import WebSocketState
 
 def is_same_tile(t1, t2):
     return (t1["top"] == t2["top"] and t1["bottom"] == t2["bottom"]) or \
@@ -531,9 +532,13 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
     show_all = (game.turn_phase in ["round_end", "game_over"])
 
+    # 2인 모드 상대방 연결 상태 판정
     opp_connected = True
     if game.mode == "multi":
-        opp_connected = (opp_num in multi_connections)
+        opp_connected = (opp_num in multi_connections and multi_connections[opp_num].client_state == WebSocketState.CONNECTED)
+
+    # 실제 접속 중인 소켓 수 계산
+    active_player_count = sum(1 for conn in multi_connections.values() if conn.client_state == WebSocketState.CONNECTED)
 
     payload = {
         "mode": game.mode,
@@ -552,7 +557,7 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         "opp_hand_count": len(opp_hand),
         "opp_hand": opp_hand if show_all else None,
         "opp_connected": opp_connected,
-        "multi_player_count": len(multi_connections),
+        "multi_player_count": active_player_count,
         "discards": game.discards,
         "scores": game.scores,
         "riichi": game.riichi,
@@ -577,7 +582,7 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         pass
 
 async def broadcast_multi():
-    """양쪽 플레이어 모두에게 상태(이벤트 포함)를 보낸 뒤 배너를 리셋함"""
+    """양쪽 플레이어 모두에게 상태를 전송한 뒤 1회성 배너 리셋"""
     for p_num, ws in list(multi_connections.items()):
         await send_state_to_ws(ws, multi_game, p_num)
     multi_game.event_banner = None
@@ -586,12 +591,14 @@ async def timer_background_task():
     while True:
         try:
             await asyncio.sleep(1)
+            # 2인 모드 타이머
             if multi_game.game_started and multi_game.turn_phase in ["draw", "discard"] and multi_game.time_limit > 0:
                 multi_game.time_left -= 1
                 if multi_game.time_left <= 0:
                     multi_game.handle_timeout()
                 await broadcast_multi()
 
+            # 1인 모드 타이머
             for ws, s_game in list(single_sessions.items()):
                 if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
                     s_game.time_left -= 1
@@ -642,6 +649,15 @@ async def websocket_endpoint(websocket: WebSocket):
                     await send_state_to_ws(websocket, s_game, 1)
                 elif chosen == "multi":
                     current_mode = "multi"
+
+                    # 유령 연결(Zombie Connection) 및 재접속 정리
+                    for p in [1, 2]:
+                        if p in multi_connections:
+                            ws_conn = multi_connections[p]
+                            if ws_conn.client_state != WebSocketState.CONNECTED or ws_conn == websocket:
+                                del multi_connections[p]
+
+                    # 빈자리 배정
                     if 1 not in multi_connections:
                         p_num = 1
                     elif 2 not in multi_connections:
@@ -649,6 +665,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     else:
                         await websocket.send_json({"type": "full", "msg": "2인 대전 방이 이미 가득 찼습니다."})
                         continue
+
                     multi_connections[p_num] = websocket
                     await broadcast_multi()
 
@@ -660,8 +677,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             s_game.ai_task.cancel()
                         del single_sessions[websocket]
                 elif current_mode == "multi":
-                    if p_num in multi_connections:
-                        del multi_connections[p_num]
+                    for p in [1, 2]:
+                        if multi_connections.get(p) == websocket:
+                            del multi_connections[p]
                     multi_game.game_started = False
                     multi_game.scores = {1: 0, 2: 0}
                     multi_game.ready = {1: False, 2: False}
@@ -739,10 +757,13 @@ async def websocket_endpoint(websocket: WebSocket):
             if s_game.ai_task and not s_game.ai_task.done():
                 s_game.ai_task.cancel()
             del single_sessions[websocket]
-        if current_mode == "multi" and p_num in multi_connections:
-            del multi_connections[p_num]
-            multi_game.game_started = False
-            multi_game.scores = {1: 0, 2: 0}
-            multi_game.ready = {1: False, 2: False}
-            multi_game.reset_round()
-            await broadcast_multi()
+
+        for p in [1, 2]:
+            if multi_connections.get(p) == websocket:
+                del multi_connections[p]
+                multi_game.game_started = False
+                multi_game.scores = {1: 0, 2: 0}
+                multi_game.ready = {1: False, 2: False}
+                multi_game.reset_round()
+                await broadcast_multi()
+                break
