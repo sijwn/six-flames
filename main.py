@@ -420,10 +420,23 @@ class GameSession:
         score = (max_color * 10) + (star_count * 8) + (pair_cnt * 12)
         return score
 
-    async def execute_ai_step(self, ws: WebSocket):
+    def check_is_tenpai(self, hand_5):
+        for top in range(1, 7):
+            for btm in range(top, 7):
+                sim_tile = {"id": "sim", "top": top, "bottom": btm, "is_double": (top == btm)}
+                if evaluate_hand(hand_5 + [sim_tile], rule_level=self.rule_level, is_incidental=False):
+                    return True
+        return False
+
+    async def execute_ai_step(self, ws: WebSocket, is_game_start=False):
         try:
-            total_delay = 0.3 + float(self.ai_delay_setting)
-            await asyncio.sleep(total_delay)
+            # 주사위 롤링(1.8초) 후 0.5초 뒤 = 총 2.3초 대기
+            if is_game_start:
+                await asyncio.sleep(2.3)
+            else:
+                total_delay = 0.3 + float(self.ai_delay_setting)
+                await asyncio.sleep(total_delay)
+
             if not self.game_started or self.current_turn != 2:
                 return
 
@@ -509,7 +522,7 @@ class GameSession:
                     should_riichi = False
                     if self.rule_level >= 3 and not self.riichi[2] and self.ai_diff in ["mid", "high"]:
                         remain_5 = [x for x in hand if x["id"] != chosen["id"]]
-                        if self.evaluate_hand_potential_fast(remain_5) >= 42:
+                        if self.check_is_tenpai(remain_5):
                             should_riichi = True
 
                 self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
@@ -718,7 +731,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         room["game"].ready = {p: False for p in range(1, current_room_size + 1)}
                         room["game"].reset_round()
                     else:
-                        room["game"].status_notice = f"⚠️️ {p_num}P 플레이어가 방을 나갔습니다."
+                        room["game"].status_notice = f"⚠️ {p_num}P 플레이어가 방을 나갔습니다."
                     await broadcast_room(current_room_size)
 
                 current_mode = "none"
@@ -762,11 +775,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.declare_ron(curr_p, mode=data.get("mode", "steal"))
                 elif act == "ready":
                     active_game.ready[curr_p] = True
+                    is_new_game_start = False
                     if current_mode == "single":
                         active_game.ready[2] = True
                         active_game.game_started = True
-                        active_game.reset_round() # 1. 먼저 패를 배분하고
-                        active_game.roll_starter_dice() # 2. 주사위를 굴려 starter와 current_turn을 설정
+                        active_game.reset_round()
+                        active_game.roll_starter_dice()
+                        is_new_game_start = True
                     else:
                         all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
                         if all_ready:
@@ -777,6 +792,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
+                        active_game.game_started = True
                         active_game.reset_round()
                     else:
                         all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
@@ -791,10 +807,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     await send_state_to_ws(websocket, active_game, 1)
                     active_game.event_banner = None
                     active_game.dice_event = None
-                    # AI(2P) 차례이면 즉각 AI 작업 가동
                     if active_game.game_started and active_game.current_turn == 2:
                         if active_game.ai_task is None or active_game.ai_task.done():
-                            active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket))
+                            active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket, is_game_start=is_new_game_start))
                 else:
                     await broadcast_room(current_room_size)
 
