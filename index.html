@@ -17,7 +17,6 @@
     .btn-home { background: #475569; color: #f8fafc; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
     .btn-home:hover { background: #64748b; }
 
-    /* 화면 중앙 선명한 알림 박스 */
     #action-box-modal {
       position: fixed; top: 42%; left: 50%; transform: translate(-50%, -50%);
       min-width: 300px; max-width: 440px; padding: 24px 28px; border-radius: 16px;
@@ -48,7 +47,6 @@
     .modal-box-yaku { font-size: 28px; font-weight: 900; margin: 6px 0; color: #ffffff; }
     .modal-box-sub { font-size: 14px; opacity: 0.95; margin-top: 6px; font-weight: bold; }
 
-    /* 플레이어 주사위 롤링 모달 창 */
     #dice-modal {
       position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
       background: #090d16; border: 3.5px solid #38bdf8; border-radius: 20px;
@@ -79,7 +77,6 @@
       to { transform: scale(1.15); box-shadow: 0 0 30px #34d399; }
     }
 
-    /* 다인용 반응형 스코어보드 */
     .scoreboard { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 8px; margin-bottom: 12px; gap: 6px; }
     .score-box { text-align: center; padding: 4px 10px; border-radius: 8px; transition: all 0.3s; flex: 1; min-width: 70px; }
     .player-label { font-size: 13px; font-weight: bold; color: #94a3b8; transition: color 0.3s; }
@@ -193,14 +190,12 @@
   </style>
 </head>
 <body>
-  <!-- 액션 알림 모달 -->
   <div id="action-box-modal">
     <div class="modal-box-title" id="box-title"></div>
     <div class="modal-box-yaku" id="box-yaku"></div>
     <div class="modal-box-sub" id="box-sub"></div>
   </div>
 
-  <!-- 플레이어 면 주사위 롤링 모달 -->
   <div id="dice-modal">
     <h3 style="margin: 0 0 10px 0; color: #facc15; font-size: 19px;">🎲 선공 결정 주사위!</h3>
     <div class="dice-wrap">
@@ -306,7 +301,7 @@
     <!-- 3. 인게임 화면 -->
     <div id="game-panel" style="display:none;">
       <div class="scoreboard" id="dynamic-scoreboard"></div>
-      <div id="status-bar" style="text-align:center; font-weight:bold; margin: 8px 0;">접속 대기 중...</div>
+      <div id="status-bar" style="text-align:center; font-weight:bold; margin: 8px 0;">게임 준비 중...</div>
 
       <div class="opp-panels-wrap" id="opp-panels-container"></div>
 
@@ -532,12 +527,10 @@
           return;
         }
 
-        // 플레이어 면 주사위 롤링 이벤트 수신 시
         if (data.dice_event) {
           showPlayerDiceRoll(data.dice_event);
         }
 
-        // 중앙 네모 박스 알림창 실행
         if (data.event_banner) {
           triggerActionBoxModal(data.event_banner);
         }
@@ -558,7 +551,7 @@
         myPlayer = data.player_num;
         isMyTurn = data.my_turn;
         currentPhase = data.phase;
-        myRiichiActive = data.riichi[myPlayer];
+        myRiichiActive = data.riichi ? data.riichi[myPlayer] : false;
         lastDrawnId = data.last_drawn_id;
         currentHand = data.my_hand || [];
         currentRuleLevel = data.rule_level || 4;
@@ -594,7 +587,7 @@
 
             for (let p = 1; p <= data.max_players; p++) {
               const isMe = (p === myPlayer);
-              const isConn = data.connected_status[p];
+              const isConn = data.connected_status ? data.connected_status[p] : false;
               let bg = isConn ? (isMe ? '#2563eb' : '#059669') : '#475569';
               let text = `${p}P${isMe ? '(나)' : ''}: ${isConn ? (data.ready[p] ? '준비완료' : '접속됨') : '대기중'}`;
               roleWrap.innerHTML += `<span style="background:${bg}; color:#fff; padding:5px 12px; border-radius:20px; font-size:13px; font-weight:bold;">${text}</span>`;
@@ -634,10 +627,10 @@
         dynScoreboard.innerHTML = '';
         for (let p = 1; p <= data.max_players; p++) {
           const isTurn = (data.current_turn === p && data.game_started && !data.show_all);
-          const isConn = data.connected_status[p];
+          const isConn = data.connected_status ? data.connected_status[p] : true;
           const isMe = (p === myPlayer);
           const connBadge = isConn ? '<span class="conn-tag conn-online">●</span>' : '<span class="conn-tag conn-offline">나감</span>';
-          const rBadge = data.riichi[p] ? '<span class="riichi-badge">리치</span>' : '';
+          const rBadge = (data.riichi && data.riichi[p]) ? '<span class="riichi-badge">리치</span>' : '';
           
           let pName = `${p}P`;
           if (data.mode === 'single') {
@@ -649,7 +642,7 @@
           dynScoreboard.innerHTML += `
             <div class="score-box ${isTurn ? 'active-turn' : ''}">
               <div class="player-label">${pName} ${connBadge} ${rBadge}</div>
-              <div class="score-val">${data.scores[p]}점</div>
+              <div class="score-val">${data.scores[p] || 0}점</div>
             </div>
           `;
         }
@@ -666,7 +659,7 @@
           timerBox.style.display = 'none';
         }
 
-        // 상대방 손패 목록 렌더링
+        // 타 플레이어 손패 목록 렌더링
         const oppContainer = document.getElementById('opp-panels-container');
         oppContainer.innerHTML = '';
         for (let p in data.opp_hands) {
@@ -691,7 +684,7 @@
           oppContainer.appendChild(row);
         }
 
-        // 바닥 알림 (주워감 / 버림)
+        // 바닥 알림
         const takenBadge = document.getElementById('last-taken-badge');
         if (data.last_taken_discard) {
           const byWhom = (data.last_taken_discard.by === myPlayer) ? '내가' : `${data.last_taken_discard.by}P가`;
@@ -715,6 +708,7 @@
         const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
         document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
 
+        // 상태바 텍스트 안내 (접속 대기 중 버그 해결)
         if (data.status_notice) {
           document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-size:15px; font-weight:bold;">${data.status_notice}</span>`;
         } else if (data.show_all) {
@@ -879,7 +873,7 @@
 
     connectWebSocket();
 
-    // 1P, 2P, 3P 등 플레이어 면 주사위 롤링 연출 함수
+    // 플레이어 면 주사위 롤링 연출 함수
     function showPlayerDiceRoll(diceEv) {
       const modal = document.getElementById('dice-modal');
       const diceEl = document.getElementById('player-dice-face');
