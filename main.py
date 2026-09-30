@@ -249,8 +249,8 @@ class GameSession:
             self.riichi[p_num] = True
             self.event_banner = {
                 "type": "riichi",
-                "title": "🔥 리치 (RIICHI)!",
-                "yaku_name": f"{p_title} 리치 선언 (+1점)",
+                "title": "🔥 리치 선언!",
+                "yaku_name": f"{p_title} 리치 (+1점)",
                 "subtext": "텐파이 확정! 손패가 고정됩니다."
             }
 
@@ -306,9 +306,9 @@ class GameSession:
 
             self.event_banner = {
                 "type": "tsumo",
-                "title": "🏆 역 완성 (쯔모)!",
-                "yaku_name": f"[{res['name']}]",
-                "subtext": f"{p_title} 완성 | 총 {total}점 획득"
+                "title": f"🏆 {p_title} 역 완성",
+                "yaku_name": f"{res['name']}",
+                "subtext": f"{detail} = 총 {total}점 획득"
             }
             self.round_settlement = [{
                 "player": p_num, "type": "쯔모",
@@ -320,14 +320,15 @@ class GameSession:
         return False
 
     def declare_ron(self, p_num, mode="steal"):
-        if self.rule_level < 3:
-            return False
-        if self.current_turn != p_num or self.turn_phase != "draw" or not self.last_discard:
+        """타가 버림패에 언제든 인터럽트하여 론 선언 가능"""
+        if self.rule_level < 3 or not self.last_discard or not self.last_discard_info:
             return False
 
-        opp = self.last_discard_info["by"] if self.last_discard_info else (2 if p_num == 1 else 1)
+        opp = self.last_discard_info["by"]
+        if opp == p_num:  # 자신이 버린 패는 론 불가
+            return False
+
         winning_tile = self.last_discard
-
         res = evaluate_hand(self.players[p_num] + [winning_tile], rule_level=self.rule_level, is_incidental=False)
         if not res:
             return False
@@ -359,9 +360,9 @@ class GameSession:
 
         self.event_banner = {
             "type": "ron",
-            "title": "⚡ 론 (RON) 직격!",
-            "yaku_name": f"[{res['name']}]",
-            "subtext": f"{p_title}이(가) {opp_title}의 버림패로 완성!"
+            "title": f"⚡ {p_title} 론 직격!",
+            "yaku_name": f"{res['name']}",
+            "subtext": f"{opp_title}의 버림패로 완성! ({detail})"
         }
         self.round_winner = p_num
         self.round_settlement = [{"player": p_num, "type": "론", "text": desc}]
@@ -396,6 +397,7 @@ class GameSession:
             self.turn_phase = "game_over"
         else:
             self.turn_phase = "round_end"
+            # 시계방향으로 다음 사람에게 선공 순환
             next_starter = self.starter + 1
             if next_starter > self.max_players:
                 next_starter = 1
@@ -430,7 +432,6 @@ class GameSession:
 
     async def execute_ai_step(self, ws: WebSocket, is_game_start=False):
         try:
-            # 주사위 롤링(1.8초) 후 0.5초 뒤 = 총 2.3초 대기
             if is_game_start:
                 await asyncio.sleep(2.3)
             else:
@@ -558,11 +559,14 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     current_yaku = evaluate_hand(my_hand, rule_level=game.rule_level, is_incidental=False) if len(my_hand) == 6 else None
     can_riichi = (game.rule_level >= 3 and p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
 
+    # 론 판정: 상대가 방금 버린 패로 완성할 수 있으면 차례와 무관하게 론 가능 (단, 본인이 버린 건 제외)
     can_ron = False
-    if game.rule_level >= 3 and p_num == game.current_turn and game.turn_phase == "draw" and game.last_discard:
-        if evaluate_hand(my_hand + [game.last_discard], rule_level=game.rule_level, is_incidental=False):
-            can_ron = True
+    if game.rule_level >= 3 and game.last_discard and game.last_discard_info:
+        if game.last_discard_info["by"] != p_num:
+            if evaluate_hand(my_hand[:5] + [game.last_discard], rule_level=game.rule_level, is_incidental=False):
+                can_ron = True
 
+    # 쯔모 완성: 오직 본인 차례 버리기(discard) 단계에서만 가능
     can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
     show_all = (game.turn_phase in ["round_end", "game_over"])
 
@@ -772,7 +776,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif act == "tsumo":
                     active_game.declare_tsumo(curr_p)
                 elif act == "ron":
-                    active_game.declare_ron(curr_p, mode=data.get("mode", "steal"))
+                    # 인터럽트 론: 다른 사람 턴이어도 론 선언 즉시 처리
+                    active_game.declare_ron(curr_p, mode="steal")
                 elif act == "ready":
                     active_game.ready[curr_p] = True
                     is_new_game_start = False
@@ -792,7 +797,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
-                        active_game.game_started = True
                         active_game.reset_round()
                     else:
                         all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
