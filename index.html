@@ -17,29 +17,68 @@
     .btn-home { background: #475569; color: #f8fafc; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
     .btn-home:hover { background: #64748b; }
 
-    /* 화면 중앙 네모 박스 알림창 */
+    /* 화면 중앙 선명한 알림 박스 (CSS 독립 애니메이션) */
     #action-box-modal {
-      position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.8);
-      min-width: 280px; max-width: 400px; padding: 22px 24px; border-radius: 14px;
-      text-align: center; z-index: 9999; pointer-events: none; opacity: 0;
-      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      box-shadow: 0 16px 45px rgba(0,0,0,0.85);
+      position: fixed;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      min-width: 300px;
+      max-width: 440px;
+      padding: 24px 28px;
+      border-radius: 16px;
+      text-align: center;
+      z-index: 999999;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 30px rgba(0, 0, 0, 0.6);
     }
     #action-box-modal.box-riichi {
-      background: #1e1b4b; border: 3px solid #ef4444; color: #fecaca;
+      background: #180509;
+      border: 3.5px solid #ef4444;
+      color: #fee2e2;
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.7), inset 0 0 15px rgba(239, 68, 68, 0.3);
     }
     #action-box-modal.box-tsumo {
-      background: #0f172a; border: 3px solid #38bdf8; color: #bae6fd;
+      background: #031525;
+      border: 3.5px solid #38bdf8;
+      color: #e0f2fe;
+      box-shadow: 0 0 35px rgba(56, 189, 248, 0.7), inset 0 0 15px rgba(56, 189, 248, 0.3);
     }
     #action-box-modal.box-ron {
-      background: #064e3b; border: 3px solid #34d399; color: #a7f3d0;
+      background: #022c22;
+      border: 3.5px solid #10b981;
+      color: #d1fae5;
+      box-shadow: 0 0 35px rgba(16, 185, 129, 0.7), inset 0 0 15px rgba(16, 185, 129, 0.3);
     }
-    #action-box-modal.show {
-      opacity: 1; transform: translate(-50%, -50%) scale(1.05);
+
+    /* 0.5초 리치 전용 페이드 애니메이션 */
+    .anim-riichi-fade {
+      animation: modalFadeRiichi 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
-    .modal-box-title { font-size: 22px; font-weight: 900; margin-bottom: 6px; letter-spacing: -0.5px; }
-    .modal-box-yaku { font-size: 26px; font-weight: 900; margin: 4px 0; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.4); }
-    .modal-box-sub { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+    @keyframes modalFadeRiichi {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); }
+      20% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+      30% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+      70% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); } /* 0.5초 동안 선명하게 유지 */
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    }
+
+    /* 1.0초 역 완성/론 전용 페이드 애니메이션 */
+    .anim-win-fade {
+      animation: modalFadeWin 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes modalFadeWin {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+      25% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+      75% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); } /* 1.0초 동안 선명하게 유지 */
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    }
+
+    .modal-box-title { font-size: 20px; font-weight: 900; margin-bottom: 6px; letter-spacing: -0.5px; text-transform: uppercase; }
+    .modal-box-yaku { font-size: 28px; font-weight: 900; margin: 6px 0; color: #ffffff; text-shadow: 0 0 12px rgba(255,255,255,0.6); }
+    .modal-box-sub { font-size: 14px; opacity: 0.95; margin-top: 6px; font-weight: bold; }
 
     .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
     .score-box { text-align: center; padding: 6px 16px; border-radius: 8px; transition: all 0.3s; }
@@ -67,7 +106,6 @@
     .timer-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 4px; }
     .timer-warn { color: #ef4444; animation: pulse 0.5s infinite alternate; }
 
-    /* 연결 상태 태그 */
     .conn-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: normal; margin-left: 4px; }
     .conn-online { background: #065f46; color: #a7f3d0; }
     .conn-offline { background: #881337; color: #fecdd3; animation: pulse 0.8s infinite alternate; }
@@ -171,7 +209,7 @@
   </style>
 </head>
 <body>
-  <!-- 중앙 네모 박스 알림창 -->
+  <!-- 화면 중앙 선명한 모달 알림창 -->
   <div id="action-box-modal">
     <div class="modal-box-title" id="box-title"></div>
     <div class="modal-box-yaku" id="box-yaku"></div>
@@ -215,7 +253,6 @@
     <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
       <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
       
-      <!-- 내 접속 정보 및 상대방 접속 상태 배지 -->
       <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
         <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;"></span>
         <span id="lobby-opp-status" style="background:#334155; color:#cbd5e1; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px; display:none;"></span>
@@ -496,6 +533,7 @@
     let currentRuleLevel = 4;
     let lastSelectedMode = 'none';
     let lastSelectedDiff = 'high';
+    let modalTimer = null;
 
     const levelDescriptions = {
       1: "🐣 <strong>1단계 (입문)</strong>: 기초적인 족보만 적용됩니다. (일색, 삼연, 육화)<br>※ 리치/론/개화/무쌍 등은 비활성화됩니다.",
@@ -556,7 +594,7 @@
           topBadge.innerText = `👥 2인 모드 (${currentRuleLevel}단계)`;
         }
 
-        // 로비 화면
+        // 로비 제어
         if (!data.game_started) {
           document.getElementById('mode-panel').style.display = 'none';
           document.getElementById('lobby-panel').style.display = 'block';
@@ -582,7 +620,6 @@
             multiTimeWrap.style.display = 'inline';
             document.getElementById('sel-time').value = data.time_limit;
 
-            // 2인 모드 상대방 접속 확인 UI
             const oppPlayerNum = (myPlayer === 1) ? 2 : 1;
             if (data.multi_player_count >= 2) {
               oppStatusEl.style.background = '#065f46';
@@ -613,7 +650,7 @@
           return;
         }
 
-        // 인게임 화면
+        // 인게임 제어
         document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'none';
         document.getElementById('game-panel').style.display = 'block';
@@ -630,7 +667,6 @@
         document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
         document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
 
-        // 플레이어 라벨 및 인게임 접속 감지 배지
         if (data.mode === 'single') {
           document.getElementById('p1-label').innerHTML = '나 (1P)';
           document.getElementById('p2-label').innerHTML = 'AI (2P)';
@@ -883,26 +919,40 @@
 
     connectWebSocket();
 
-    // 네모 박스 모달 팝업 실행
+    // 선명하게 떴다가 페이드아웃되는 네모 박스 모달 실행
     function triggerActionBoxModal(banner) {
       const modal = document.getElementById('action-box-modal');
       const titleEl = document.getElementById('box-title');
       const yakuEl = document.getElementById('box-yaku');
       const subEl = document.getElementById('box-sub');
 
+      if (modalTimer) {
+        clearTimeout(modalTimer);
+      }
+
       modal.className = '';
       titleEl.innerText = banner.title || '';
       yakuEl.innerText = banner.yaku_name || '';
       subEl.innerText = banner.subtext || '';
 
-      if (banner.type === 'riichi') modal.classList.add('box-riichi');
-      else if (banner.type === 'tsumo') modal.classList.add('box-tsumo');
-      else if (banner.type === 'ron') modal.classList.add('box-ron');
+      modal.style.display = 'block';
 
-      modal.classList.add('show');
-      setTimeout(() => {
-        modal.classList.remove('show');
-      }, 1600);
+      if (banner.type === 'riichi') {
+        modal.classList.add('box-riichi', 'anim-riichi-fade');
+        // 리치는 0.5초 선명 유지 후 페이드아웃 (총 0.8초 후 종료)
+        modalTimer = setTimeout(() => {
+          modal.style.display = 'none';
+          modal.className = '';
+        }, 800);
+      } else {
+        const isTsumo = (banner.type === 'tsumo');
+        modal.classList.add(isTsumo ? 'box-tsumo' : 'box-ron', 'anim-win-fade');
+        // 역 완성 및 론은 1.0초 선명 유지 후 페이드아웃 (총 1.4초 후 종료)
+        modalTimer = setTimeout(() => {
+          modal.style.display = 'none';
+          modal.className = '';
+        }, 1400);
+      }
     }
 
     function updateRuleLevelUI(level) {
