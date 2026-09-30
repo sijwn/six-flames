@@ -11,6 +11,7 @@ def is_same_tile(t1, t2):
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
 def evaluate_fixed_hand(tiles, is_incidental=False):
+    """현재 위/아래 방향 그대로 판정하는 단일 검사 함수"""
     if len(tiles) != 6:
         return None
 
@@ -80,12 +81,7 @@ def evaluate_fixed_hand(tiles, is_incidental=False):
                 best_name, best_base, best_stars = "삼연", 3, star_count
             break
 
-    # 9. 동형 (1점 + 별보너스)
-    if sorted(tops) == [1, 2, 2, 3, 3, 3]:
-        if 1 > best_base:
-            best_name, best_base, best_stars = "동형", 1, star_count
-
-    # 10. 일색 (1점 + 별보너스)
+    # 9. 일색 (1점 + 별보너스)
     if len(set(bottoms)) == 1:
         if 1 > best_base:
             best_name, best_base, best_stars = "일색", 1, star_count
@@ -360,9 +356,9 @@ class GameSession:
             self.turn_phase = "round_end"
             self.starter = 2 if self.starter == 1 else 1
 
-    # --- 초고속 경량 AI 평가 로직 (CPU 점유율 제로) ---
+    # --- 초고속 경량 AI 평가 로직 (동형 제거 및 CPU 점유율 제로) ---
     def evaluate_hand_potential_fast(self, hand):
-        """무거운 플립 루프 없이 손패의 정렬 및 특성만으로 0.0001초 만에 점수화"""
+        """손패의 정렬 및 특성만으로 0.0001초 만에 점수화"""
         if not hand: return 0
         star_count = sum(1 for t in hand if t["is_double"])
         
@@ -396,7 +392,6 @@ class GameSession:
 
             # 1. DRAW 단계
             if self.turn_phase == "draw":
-                # 론 판정 (가벼운 단일 검사)
                 if self.last_discard:
                     res_ron = evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False)
                     if res_ron:
@@ -416,7 +411,6 @@ class GameSession:
                             await send_state_to_ws(ws, self, 1)
                             return
 
-                # 바닥 패 가져오기 (가장 유효한 패 1~2개만 가볍게 체크)
                 picked_from_floor = False
                 picked_tile_info = None
 
@@ -425,7 +419,6 @@ class GameSession:
                     best_gain = 0
                     best_target = None
 
-                    # 바닥의 최근 4장만 탐색 (연산 부하 제거)
                     for disc in reversed(self.discards[-4:]):
                         gain = self.evaluate_hand_potential_fast(self.players[2] + [disc]) - base_pot
                         if gain > best_gain:
@@ -446,7 +439,6 @@ class GameSession:
 
             # 2. DISCARD 단계
             if self.turn_phase == "discard":
-                # 즉시 완성 검사 (단 1회만 호출)
                 res_win = evaluate_hand(self.players[2], is_incidental=False)
                 if res_win:
                     self.declare_tsumo(2)
@@ -462,7 +454,6 @@ class GameSession:
                     await send_state_to_ws(ws, self, 1)
                     return
 
-                # 어떤 패를 버릴지 초고속 점수화 (6장 각각 제거 후 잠재력 비교)
                 if self.ai_diff == "low":
                     chosen = random.choice(hand)
                     should_riichi = False
@@ -472,17 +463,15 @@ class GameSession:
                         remain_5 = [x for x in hand if x["id"] != t["id"]]
                         pot = self.evaluate_hand_potential_fast(remain_5)
                         if t["is_double"]:
-                            pot -= 5  # 별 패는 보존
+                            pot -= 5
                         scored_candidates.append((pot, t))
 
                     scored_candidates.sort(key=lambda x: x[0], reverse=True)
                     chosen = scored_candidates[0][1]
 
-                    # 고급 봇 리치 조건
                     should_riichi = False
                     if not self.riichi[2] and self.ai_diff in ["mid", "high"]:
                         remain_5 = [x for x in hand if x["id"] != chosen["id"]]
-                        # 일색/삼동 형태가 4장 이상 갖춰지면 리치
                         if self.evaluate_hand_potential_fast(remain_5) >= 42:
                             should_riichi = True
 
@@ -490,7 +479,6 @@ class GameSession:
                 riichi_txt = " (🔥리치 선언!)" if should_riichi else ""
                 self.status_notice = f"🤖 AI가 {draw_action_txt} [{chosen['top']}/{chosen['bottom']}]을(를) 버렸습니다.{riichi_txt}"
 
-                # 턴이 1P(유저)로 넘어간 상태를 즉각 송신
                 await send_state_to_ws(ws, self, 1)
 
         except asyncio.CancelledError:
@@ -558,18 +546,15 @@ async def broadcast_multi():
         await send_state_to_ws(ws, multi_game, p_num)
 
 async def timer_background_task():
-    """서버 타이머 루프: AI 동작을 간섭하지 않고 오직 시간만 깎음"""
     while True:
         try:
             await asyncio.sleep(1)
-            # 2인 모드 시간 차감
             if multi_game.game_started and multi_game.turn_phase in ["draw", "discard"] and multi_game.time_limit > 0:
                 multi_game.time_left -= 1
                 if multi_game.time_left <= 0:
                     multi_game.handle_timeout()
                 await broadcast_multi()
 
-            # 1인 모드 시간 차감
             for ws, s_game in list(single_sessions.items()):
                 if s_game.game_started and s_game.turn_phase in ["draw", "discard"] and s_game.time_limit > 0:
                     s_game.time_left -= 1
@@ -610,7 +595,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if chosen == "single":
                     current_mode = "single"
                     p_num = 1
-                    diff = data.get("diff", "high")  # 기본값 고급(상)
+                    diff = data.get("diff", "high")
                     s_game = GameSession(mode="single", ai_diff=diff)
                     single_sessions[websocket] = s_game
                     await send_state_to_ws(websocket, s_game, 1)
@@ -696,10 +681,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.game_started = False
                     active_game.reset_round()
 
-                # 화면 즉시 갱신
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
-                    # 유저가 버려 2P(AI) 턴이 되면 비동기 태스크로 실행
                     if active_game.game_started and active_game.current_turn == 2:
                         if active_game.ai_task is None or active_game.ai_task.done():
                             active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket))
