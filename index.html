@@ -67,6 +67,11 @@
     .timer-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 4px; }
     .timer-warn { color: #ef4444; animation: pulse 0.5s infinite alternate; }
 
+    /* 연결 상태 태그 */
+    .conn-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: normal; margin-left: 4px; }
+    .conn-online { background: #065f46; color: #a7f3d0; }
+    .conn-offline { background: #881337; color: #fecdd3; animation: pulse 0.8s infinite alternate; }
+
     .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
     .tile-wrap { position: relative; display: inline-block; padding-top: 14px; }
     .tile {
@@ -123,7 +128,6 @@
     .settlement-card.win { border-left-color: #4ade80; }
     .settlement-card.incidental { border-left-color: #facc15; }
 
-    /* 바닥 알림 배지 (주워감 / 버림) */
     .taken-notice-badge {
       background: #854d0e; color: #fef08a; padding: 3px 8px; border-radius: 4px;
       font-size: 11px; font-weight: bold; margin-left: 4px; display: inline-block;
@@ -211,8 +215,10 @@
     <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
       <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
       
-      <div style="margin-bottom: 12px;">
+      <!-- 내 접속 정보 및 상대방 접속 상태 배지 -->
+      <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
         <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;"></span>
+        <span id="lobby-opp-status" style="background:#334155; color:#cbd5e1; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px; display:none;"></span>
       </div>
 
       <div style="background:#0f172a; padding:14px; border-radius:10px; border:1px solid #334155; margin: 15px auto; max-width: 580px; text-align:left;">
@@ -514,7 +520,7 @@
           return;
         }
 
-        // 중앙 네모 박스 알림창 실행 (리치, 쯔모, 론)
+        // 중앙 네모 박스 알림창 실행
         if (data.event_banner) {
           triggerActionBoxModal(data.event_banner);
         }
@@ -550,28 +556,43 @@
           topBadge.innerText = `👥 2인 모드 (${currentRuleLevel}단계)`;
         }
 
-        // 로비 제어
+        // 로비 화면
         if (!data.game_started) {
           document.getElementById('mode-panel').style.display = 'none';
           document.getElementById('lobby-panel').style.display = 'block';
           document.getElementById('game-panel').style.display = 'none';
 
           const roleEl = document.getElementById('lobby-my-role');
+          const oppStatusEl = document.getElementById('lobby-opp-status');
           const singleDelayWrap = document.getElementById('single-delay-wrap');
           const multiTimeWrap = document.getElementById('multi-time-wrap');
 
           if (data.mode === 'single') {
             roleEl.innerText = `👤 나 (1P) vs 🤖 AI (2P)`;
+            oppStatusEl.style.display = 'none';
             document.getElementById('lobby-heading').innerText = '🔥 1인 연습 대전 준비';
             singleDelayWrap.style.display = 'inline';
             multiTimeWrap.style.display = 'none';
             document.getElementById('sel-ai-delay').value = data.ai_delay_setting || '0';
           } else {
-            roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
+            roleEl.innerText = `내 위치: ${myPlayer}P`;
+            oppStatusEl.style.display = 'inline-block';
             document.getElementById('lobby-heading').innerText = '🔥 2인 온라인 대전 로비';
             singleDelayWrap.style.display = 'none';
             multiTimeWrap.style.display = 'inline';
             document.getElementById('sel-time').value = data.time_limit;
+
+            // 2인 모드 상대방 접속 확인 UI
+            const oppPlayerNum = (myPlayer === 1) ? 2 : 1;
+            if (data.multi_player_count >= 2) {
+              oppStatusEl.style.background = '#065f46';
+              oppStatusEl.style.color = '#a7f3d0';
+              oppStatusEl.innerText = `🟢 상대방 (${oppPlayerNum}P): 접속 완료`;
+            } else {
+              oppStatusEl.style.background = '#854d0e';
+              oppStatusEl.style.color = '#fef08a';
+              oppStatusEl.innerText = `⏳ 상대방: 접속 대기 중...`;
+            }
           }
 
           if (document.activeElement !== document.getElementById('inp-target')) {
@@ -579,18 +600,20 @@
           }
           document.getElementById('sel-rule-level').value = currentRuleLevel;
 
-          document.getElementById('btn-lobby-ready').disabled = data.ready[myPlayer];
-          document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 시작 / 준비';
+          const isOppReadyToStart = (data.mode === 'single') || (data.multi_player_count >= 2);
+          const btnReady = document.getElementById('btn-lobby-ready');
+          btnReady.disabled = data.ready[myPlayer] || !isOppReadyToStart;
+          btnReady.innerText = !isOppReadyToStart ? '상대방 접속 대기 중...' : (data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 준비 완료');
           
           if (data.mode === 'single') {
             document.getElementById('lobby-status').innerText = '준비 완료를 누르면 바로 대전이 시작됩니다.';
           } else {
-            document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+            document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '대기 중'} | 2P: ${data.ready[2] ? '준비됨' : '대기 중'}`;
           }
           return;
         }
 
-        // 인게임 제어
+        // 인게임 화면
         document.getElementById('mode-panel').style.display = 'none';
         document.getElementById('lobby-panel').style.display = 'none';
         document.getElementById('game-panel').style.display = 'block';
@@ -607,12 +630,21 @@
         document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
         document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
 
+        // 플레이어 라벨 및 인게임 접속 감지 배지
         if (data.mode === 'single') {
-          document.getElementById('p1-label').innerText = '나 (1P)';
-          document.getElementById('p2-label').innerText = 'AI (2P)';
+          document.getElementById('p1-label').innerHTML = '나 (1P)';
+          document.getElementById('p2-label').innerHTML = 'AI (2P)';
         } else {
-          document.getElementById('p1-label').innerText = (myPlayer === 1) ? '1P (나)' : '1P';
-          document.getElementById('p2-label').innerText = (myPlayer === 2) ? '2P (나)' : '2P';
+          const oppNum = (myPlayer === 1) ? 2 : 1;
+          const oppConnHtml = data.opp_connected ? '<span class="conn-tag conn-online">● 연결됨</span>' : '<span class="conn-tag conn-offline">▲ 나감</span>';
+          
+          if (myPlayer === 1) {
+            document.getElementById('p1-label').innerHTML = '1P (나)';
+            document.getElementById('p2-label').innerHTML = `2P ${oppConnHtml}`;
+          } else {
+            document.getElementById('p1-label').innerHTML = `1P ${oppConnHtml}`;
+            document.getElementById('p2-label').innerHTML = '2P (나)';
+          }
         }
 
         const p1Box = document.getElementById('p1-score-box');
@@ -668,7 +700,9 @@
         document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
 
         // 상태바 안내
-        if (data.status_notice) {
+        if (data.mode === 'multi' && !data.opp_connected) {
+          document.getElementById('status-bar').innerHTML = `<span style="color:#ef4444; font-weight:bold;">⚠️ 상대방의 접속이 끊어졌습니다. 재접속 대기 중...</span>`;
+        } else if (data.status_notice) {
           document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-size:15px; font-weight:bold;">${data.status_notice}</span>`;
         } else if (data.show_all) {
           document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
@@ -849,7 +883,7 @@
 
     connectWebSocket();
 
-    // 중앙 네모 박스 모달 팝업 트리거
+    // 네모 박스 모달 팝업 실행
     function triggerActionBoxModal(banner) {
       const modal = document.getElementById('action-box-modal');
       const titleEl = document.getElementById('box-title');
