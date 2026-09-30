@@ -10,8 +10,7 @@ def is_same_tile(t1, t2):
     return (t1["top"] == t2["top"] and t1["bottom"] == t2["bottom"]) or \
            (t1["top"] == t2["bottom"] and t1["bottom"] == t2["top"])
 
-def evaluate_fixed_hand(tiles, is_incidental=False):
-    """현재 위/아래 방향 그대로 판정하는 단일 검사 함수"""
+def evaluate_fixed_hand(tiles, rule_level=4, is_incidental=False):
     if len(tiles) != 6:
         return None
 
@@ -24,67 +23,76 @@ def evaluate_fixed_hand(tiles, is_incidental=False):
     best_base = -1
     best_stars = 0
 
-    # 1. 무쌍 (3점 + 별보너스 6개 = 총 9점)
-    if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
-        return {"name": "무쌍", "base_score": 3, "stars": 6, "total_score": 9}
+    # 4단계 전용 족보
+    if rule_level >= 4:
+        # 개화 (8점 + 별보너스)
+        if sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]:
+            if all(t["top"] + t["bottom"] == 7 for t in tiles):
+                if 8 > best_base:
+                    best_name, best_base, best_stars = "개화", 8, star_count
 
-    # 2. 개화 (8점 + 별보너스)
-    if (sorted(tops) == [1, 2, 3, 4, 5, 6] and sorted(bottoms) == [1, 2, 3, 4, 5, 6]):
-        if all(t["top"] + t["bottom"] == 7 for t in tiles):
-            if 8 > best_base:
-                best_name, best_base, best_stars = "개화", 8, star_count
+        # 연쇄 (6점, 보너스 무시)
+        chain_pairs = sorted([tuple(sorted((t["top"], t["bottom"]))) for t in tiles])
+        if chain_pairs == [(1, 2), (1, 6), (2, 3), (3, 4), (4, 5), (5, 6)]:
+            if 6 > best_base:
+                best_name, best_base, best_stars = "연쇄", 6, 0
 
-    # 3. 연쇄 (6점, 보너스 무시)
-    chain_pairs = sorted([tuple(sorted((t["top"], t["bottom"]))) for t in tiles])
-    if chain_pairs == [(1, 2), (1, 6), (2, 3), (3, 4), (4, 5), (5, 6)]:
-        if 6 > best_base:
-            best_name, best_base, best_stars = "연쇄", 6, 0
-
-    # 4. 육화 (6점 + 별보너스)
-    if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
-        if 6 > best_base:
-            best_name, best_base, best_stars = "육화", 6, star_count
-
-    # 5. 휘광 (5점, 보너스 무시)
-    if star_count == 6:
-        if 5 > best_base:
-            best_name, best_base, best_stars = "휘광", 5, 0
-
-    # 6. 삼동 (5점 + 별보너스)
-    for p in permutations(tiles):
-        if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
-            if 5 > best_base:
-                best_name, best_base, best_stars = "삼동", 5, star_count
-            break
-
-    # 7. 삼색 (3점, 보너스 무시) - 겸사겸사
-    if is_incidental and len(all_nums) <= 3:
-        if 3 > best_base:
-            best_name, best_base, best_stars = "삼색", 3, 0
-
-    # 8. 삼연 (3점 + 별보너스)
-    for s1_idx in combinations(range(6), 3):
-        s2_idx = [i for i in range(6) if i not in s1_idx]
-        s1 = [tiles[i] for i in s1_idx]
-        s2 = [tiles[i] for i in s2_idx]
-        
-        c1 = (len(set(t["bottom"] for t in s1)) == 1)
-        st1 = sorted(t["top"] for t in s1)
-        seq1 = (len(st1) == 3 and st1[0] + 1 == st1[1] and st1[1] + 1 == st1[2])
-
-        c2 = (len(set(t["bottom"] for t in s2)) == 1)
-        st2 = sorted(t["top"] for t in s2)
-        seq2 = (len(st2) == 3 and st2[0] + 1 == st2[1] and st2[1] + 1 == st2[2])
-
-        if c1 and seq1 and c2 and seq2:
+    # 3단계 이상 족보
+    if rule_level >= 3:
+        # 무쌍 (3점 + 별보너스 6개 = 총 9점)
+        if star_count == 6 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
             if 3 > best_base:
-                best_name, best_base, best_stars = "삼연", 3, star_count
-            break
+                best_name, best_base, best_stars = "무쌍", 3, 6
 
-    # 9. 일색 (1점 + 별보너스)
-    if len(set(bottoms)) == 1:
-        if 1 > best_base:
-            best_name, best_base, best_stars = "일색", 1, star_count
+    # 2단계 이상 족보
+    if rule_level >= 2:
+        # 휘광 (5점, 보너스 무시)
+        if star_count == 6:
+            if 5 > best_base:
+                best_name, best_base, best_stars = "휘광", 5, 0
+
+        # 삼동 (5점 + 별보너스)
+        for p in permutations(tiles):
+            if is_same_tile(p[0], p[1]) and is_same_tile(p[2], p[3]) and is_same_tile(p[4], p[5]):
+                if 5 > best_base:
+                    best_name, best_base, best_stars = "삼동", 5, star_count
+                break
+
+        # 삼색 (3점, 겸사겸사 전용)
+        if is_incidental and len(all_nums) <= 3:
+            if 3 > best_base:
+                best_name, best_base, best_stars = "삼색", 3, 0
+
+    # 1단계 기본 족보
+    if rule_level >= 1:
+        # 육화 (6점 + 별보너스)
+        if len(set(bottoms)) == 1 and sorted(tops) == [1, 2, 3, 4, 5, 6]:
+            if 6 > best_base:
+                best_name, best_base, best_stars = "육화", 6, star_count
+
+        # 삼연 (3점 + 별보너스)
+        for s1_idx in combinations(range(6), 3):
+            s2_idx = [i for i in range(6) if i not in s1_idx]
+            s1 = [tiles[i] for i in s1_idx]
+            s2 = [tiles[i] for i in s2_idx]
+            
+            c1 = (len(set(t["bottom"] for t in s1)) == 1)
+            st1 = sorted(t["top"] for t in s1)
+            seq1 = (len(st1) == 3 and st1[0] + 1 == st1[1] and st1[1] + 1 == st1[2])
+
+            c2 = (len(set(t["bottom"] for t in s2)) == 1)
+            st2 = sorted(t["top"] for t in s2)
+            seq2 = (len(st2) == 3 and st2[0] + 1 == st2[1] and st2[1] + 1 == st2[2])
+
+            if c1 and seq1 and c2 and seq2:
+                if 3 > best_base:
+                    best_name, best_base, best_stars = "삼연", 3, star_count
+                break
+
+        # 일색 (1점 + 별보너스)
+        if len(set(bottoms)) == 1:
+            if 1 > best_base:
+                best_name, best_base, best_stars = "일색", 1, star_count
 
     if best_name:
         return {
@@ -93,8 +101,7 @@ def evaluate_fixed_hand(tiles, is_incidental=False):
         }
     return None
 
-def evaluate_hand(tiles, is_incidental=False):
-    """위/아래 방향 64가지를 전수 검사하여 최선의 역 판정"""
+def evaluate_hand(tiles, rule_level=4, is_incidental=False):
     if len(tiles) != 6:
         return None
 
@@ -107,7 +114,7 @@ def evaluate_hand(tiles, is_incidental=False):
                 variant.append({"id": t["id"], "top": t["bottom"], "bottom": t["top"], "is_double": t["is_double"]})
             else:
                 variant.append(t)
-        res = evaluate_fixed_hand(variant, is_incidental=is_incidental)
+        res = evaluate_fixed_hand(variant, rule_level=rule_level, is_incidental=is_incidental)
         if res:
             if best is None or res["total_score"] > best["total_score"]:
                 best = res
@@ -115,10 +122,10 @@ def evaluate_hand(tiles, is_incidental=False):
                     break
     return best
 
-def check_incidental_win(hand_5, discards):
+def check_incidental_win(hand_5, discards, rule_level=4):
     best = None
     for d in discards:
-        res = evaluate_hand(hand_5 + [d], is_incidental=True)
+        res = evaluate_hand(hand_5 + [d], rule_level=rule_level, is_incidental=True)
         if res:
             if best is None or res["total_score"] > best["total_score"]:
                 best = res
@@ -129,16 +136,19 @@ class GameSession:
     def __init__(self, mode="single", ai_diff="high"):
         self.mode = mode
         self.ai_diff = ai_diff
+        self.rule_level = 4
         self.target_score = 10
         self.time_limit = 60
-        self.ai_delay_setting = 0  # 1인 모드 시 추가 딜레이(기본 0초)
+        self.ai_delay_setting = 0
         self.time_left = 60
         self.scores = {1: 0, 2: 0}
         self.starter = 1
         self.ready = {1: False, 2: False}
         self.game_started = False
         self.status_notice = None
+        self.last_taken_discard = None # 상대가 바닥에서 가져간 패
         self.ai_task = None
+        self.event_banner = None # riichi, tsumo, ron
         self.reset_round()
 
     def reset_round(self):
@@ -162,8 +172,10 @@ class GameSession:
         self.round_settlement = []
         self.last_drawn_id = {1: None, 2: None}
         self.last_discard = None
+        self.last_taken_discard = None
         self.ready = {1: False, 2: False}
         self.status_notice = None
+        self.event_banner = None
         if self.ai_task and not self.ai_task.done():
             self.ai_task.cancel()
         self.ai_task = None
@@ -203,6 +215,7 @@ class GameSession:
                 return False
             self.discards.remove(target)
             tile = target
+            self.last_taken_discard = {"by": p_num, "tile": target}
         else:
             if not self.deck:
                 self.turn_phase = "round_end"
@@ -228,8 +241,9 @@ class GameSession:
         if not target:
             return False
 
-        if declare_riichi and not self.riichi[p_num]:
+        if declare_riichi and not self.riichi[p_num] and self.rule_level >= 3:
             self.riichi[p_num] = True
+            self.event_banner = {"type": "riichi", "text": f"{'1P' if p_num == 1 else '2P(AI)'} 리치 선언!"}
 
         hand.remove(target)
         self.discards.append(target)
@@ -262,7 +276,7 @@ class GameSession:
     def declare_tsumo(self, p_num):
         if self.current_turn != p_num or self.turn_phase != "discard":
             return False
-        res = evaluate_hand(self.players[p_num], is_incidental=False)
+        res = evaluate_hand(self.players[p_num], rule_level=self.rule_level, is_incidental=False)
         if res:
             base = res["base_score"]
             stars = res["stars"]
@@ -276,6 +290,7 @@ class GameSession:
             if stars > 0: detail += f" + 별보너스({stars}점)"
             if riichi_pt > 0: detail += " + 리치(1점)"
 
+            self.event_banner = {"type": "tsumo", "text": f"[{p_title}] {res['name']} 쯔모 완성!"}
             self.round_settlement = [{
                 "player": p_num, "type": "쯔모",
                 "text": f"[{p_title} 쯔모 완성] {detail} = 총 {total}점 획득"
@@ -286,13 +301,15 @@ class GameSession:
         return False
 
     def declare_ron(self, p_num, mode="steal"):
+        if self.rule_level < 3:
+            return False
         if self.current_turn != p_num or self.turn_phase != "draw" or not self.last_discard:
             return False
 
         opp = 2 if p_num == 1 else 1
         winning_tile = self.last_discard
 
-        res = evaluate_hand(self.players[p_num] + [winning_tile], is_incidental=False)
+        res = evaluate_hand(self.players[p_num] + [winning_tile], rule_level=self.rule_level, is_incidental=False)
         if not res:
             return False
 
@@ -321,6 +338,7 @@ class GameSession:
             self.scores[p_num] += total
             desc = f"[{p_title} 완성] {detail} = 공급처로부터 총 {total}점 획득"
 
+        self.event_banner = {"type": "ron", "text": f"[{p_title}] {res['name']} 론 직격!"}
         self.round_winner = p_num
         self.round_settlement = [{"player": p_num, "type": "론", "text": desc}]
         self.end_round()
@@ -329,7 +347,7 @@ class GameSession:
     def check_round_end_incidentals(self, winner_num):
         for p in [1, 2]:
             if p != winner_num and len(self.players[p]) == 5:
-                res = check_incidental_win(self.players[p], self.discards)
+                res = check_incidental_win(self.players[p], self.discards, rule_level=self.rule_level)
                 if res:
                     wt = res["winning_tile"]
                     self.players[p].append(wt)
@@ -356,13 +374,9 @@ class GameSession:
             self.turn_phase = "round_end"
             self.starter = 2 if self.starter == 1 else 1
 
-    # --- 초고속 경량 AI 평가 로직 (동형 제거 및 CPU 점유율 제로) ---
     def evaluate_hand_potential_fast(self, hand):
-        """손패의 정렬 및 특성만으로 0.0001초 만에 점수화"""
         if not hand: return 0
         star_count = sum(1 for t in hand if t["is_double"])
-        
-        # 일색 가능성 (각 숫자가 위나 아래에 몇 번 등장하는지)
         num_freq = Counter()
         for t in hand:
             num_freq[t["top"]] += 1
@@ -370,7 +384,6 @@ class GameSession:
                 num_freq[t["bottom"]] += 1
         max_color = max(num_freq.values()) if num_freq else 0
 
-        # 페어(삼동) 가능성
         pair_cnt = 0
         for i in range(len(hand)):
             for j in range(i + 1, len(hand)):
@@ -381,7 +394,6 @@ class GameSession:
         return score
 
     async def execute_ai_step(self, ws: WebSocket):
-        """기본 0.3초 + 유저 설정 딜레이 후 초고속(0.005초) 연산 실행"""
         try:
             total_delay = 0.3 + float(self.ai_delay_setting)
             await asyncio.sleep(total_delay)
@@ -390,16 +402,15 @@ class GameSession:
 
             opp_score = self.scores[1]
 
-            # 1. DRAW 단계
+            # 1. DRAW
             if self.turn_phase == "draw":
-                if self.last_discard:
-                    res_ron = evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False)
+                if self.rule_level >= 3 and self.last_discard:
+                    res_ron = evaluate_hand(self.players[2] + [self.last_discard], rule_level=self.rule_level, is_incidental=False)
                     if res_ron:
                         base = res_ron["base_score"]
                         stars = res_ron["stars"]
                         riichi_pt = 1 if self.riichi[2] else 0
                         hand_total = base + stars + riichi_pt
-
                         chosen_mode = "steal" if opp_score >= hand_total else "direct"
                         should_ron = True
                         if not self.riichi[2] and opp_score == 0 and hand_total <= 1 and len(self.deck) > 15:
@@ -418,7 +429,6 @@ class GameSession:
                     base_pot = self.evaluate_hand_potential_fast(self.players[2])
                     best_gain = 0
                     best_target = None
-
                     for disc in reversed(self.discards[-4:]):
                         gain = self.evaluate_hand_potential_fast(self.players[2] + [disc]) - base_pot
                         if gain > best_gain:
@@ -437,9 +447,9 @@ class GameSession:
                 else:
                     draw_action_txt = f"바닥에서 {picked_tile_info} 패를 가져오고"
 
-            # 2. DISCARD 단계
+            # 2. DISCARD
             if self.turn_phase == "discard":
-                res_win = evaluate_hand(self.players[2], is_incidental=False)
+                res_win = evaluate_hand(self.players[2], rule_level=self.rule_level, is_incidental=False)
                 if res_win:
                     self.declare_tsumo(2)
                     self.status_notice = None
@@ -462,15 +472,14 @@ class GameSession:
                     for t in hand:
                         remain_5 = [x for x in hand if x["id"] != t["id"]]
                         pot = self.evaluate_hand_potential_fast(remain_5)
-                        if t["is_double"]:
-                            pot -= 5
+                        if t["is_double"]: pot -= 5
                         scored_candidates.append((pot, t))
 
                     scored_candidates.sort(key=lambda x: x[0], reverse=True)
                     chosen = scored_candidates[0][1]
 
                     should_riichi = False
-                    if not self.riichi[2] and self.ai_diff in ["mid", "high"]:
+                    if self.rule_level >= 3 and not self.riichi[2] and self.ai_diff in ["mid", "high"]:
                         remain_5 = [x for x in hand if x["id"] != chosen["id"]]
                         if self.evaluate_hand_potential_fast(remain_5) >= 42:
                             should_riichi = True
@@ -495,12 +504,12 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     my_hand = game.players.get(p_num, [])
     opp_hand = game.players.get(opp_num, [])
 
-    current_yaku = evaluate_hand(my_hand, is_incidental=False) if len(my_hand) == 6 else None
-    can_riichi = (p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
+    current_yaku = evaluate_hand(my_hand, rule_level=game.rule_level, is_incidental=False) if len(my_hand) == 6 else None
+    can_riichi = (game.rule_level >= 3 and p_num == game.current_turn and game.turn_phase == "discard" and not game.riichi[p_num])
 
     can_ron = False
-    if p_num == game.current_turn and game.turn_phase == "draw" and game.last_discard:
-        if evaluate_hand(my_hand + [game.last_discard], is_incidental=False):
+    if game.rule_level >= 3 and p_num == game.current_turn and game.turn_phase == "draw" and game.last_discard:
+        if evaluate_hand(my_hand + [game.last_discard], rule_level=game.rule_level, is_incidental=False):
             can_ron = True
 
     can_tsumo = (p_num == game.current_turn and game.turn_phase == "discard" and current_yaku is not None)
@@ -509,6 +518,7 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     payload = {
         "mode": game.mode,
         "ai_diff": game.ai_diff,
+        "rule_level": game.rule_level,
         "ai_delay_setting": game.ai_delay_setting,
         "player_num": p_num,
         "target_score": game.target_score,
@@ -534,8 +544,12 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
         "ready": game.ready,
         "show_all": show_all,
         "game_started": game.game_started,
-        "status_notice": game.status_notice
+        "status_notice": game.status_notice,
+        "last_taken_discard": game.last_taken_discard,
+        "event_banner": game.event_banner
     }
+    # 팝업 배너는 1회 전송 후 리셋
+    game.event_banner = None
     try:
         await ws.send_json(payload)
     except Exception:
@@ -590,6 +604,11 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
             act = data.get("action")
 
+            if act == "ping":
+                # 모바일 절전/복구용 핑퐁 응답
+                await websocket.send_json({"type": "pong"})
+                continue
+
             if act == "select_mode":
                 chosen = data.get("mode")
                 if chosen == "single":
@@ -641,6 +660,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if act == "set_settings":
                     if not active_game.game_started:
                         active_game.target_score = int(data.get("score", 10))
+                        active_game.rule_level = int(data.get("rule_level", 4))
                         if active_game.mode == "single":
                             active_game.ai_delay_setting = float(data.get("ai_delay", 0))
                         else:
@@ -671,16 +691,15 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
-                        active_game.game_started = True
                         active_game.reset_round()
                     elif active_game.ready[1] and active_game.ready[2]:
-                        active_game.game_started = True
                         active_game.reset_round()
                 elif act == "reset_game":
                     active_game.scores = {1: 0, 2: 0}
                     active_game.game_started = False
                     active_game.reset_round()
 
+                # 화면 동기화
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
                     if active_game.game_started and active_game.current_turn == 2:
