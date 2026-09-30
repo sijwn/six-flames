@@ -143,7 +143,6 @@ class GameSession:
         self.reset_round()
 
     def roll_starter_dice(self):
-        """플레이어 면 주사위를 굴려 1P~max_P 중 1명 직접 추첨"""
         chosen_starter = random.randint(1, self.max_players)
         self.starter = chosen_starter
         self.current_turn = chosen_starter
@@ -719,7 +718,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         room["game"].ready = {p: False for p in range(1, current_room_size + 1)}
                         room["game"].reset_round()
                     else:
-                        room["game"].status_notice = f"⚠️ {p_num}P 플레이어가 방을 나갔습니다."
+                        room["game"].status_notice = f"⚠️️ {p_num}P 플레이어가 방을 나갔습니다."
                     await broadcast_room(current_room_size)
 
                 current_mode = "none"
@@ -766,19 +765,18 @@ async def websocket_endpoint(websocket: WebSocket):
                     if current_mode == "single":
                         active_game.ready[2] = True
                         active_game.game_started = True
-                        active_game.roll_starter_dice()
-                        active_game.reset_round()
+                        active_game.reset_round() # 1. 먼저 패를 배분하고
+                        active_game.roll_starter_dice() # 2. 주사위를 굴려 starter와 current_turn을 설정
                     else:
                         all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
                         if all_ready:
                             active_game.game_started = True
-                            active_game.roll_starter_dice()
                             active_game.reset_round()
+                            active_game.roll_starter_dice()
                 elif act == "ready_next":
                     active_game.ready[curr_p] = True
                     if current_mode == "single":
                         active_game.ready[2] = True
-                        active_game.game_started = True
                         active_game.reset_round()
                     else:
                         all_ready = all(active_game.ready[p] for p in range(1, active_game.max_players + 1))
@@ -793,6 +791,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await send_state_to_ws(websocket, active_game, 1)
                     active_game.event_banner = None
                     active_game.dice_event = None
+                    # AI(2P) 차례이면 즉각 AI 작업 가동
                     if active_game.game_started and active_game.current_turn == 2:
                         if active_game.ai_task is None or active_game.ai_task.done():
                             active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket))
