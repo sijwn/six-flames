@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>여섯 불꽃 온라인</title>
   <style>
     :root {
       --c1: #ef4444; --c2: #f97316; --c3: #eab308;
       --c4: #10b981; --c5: #3b82f6; --c6: #a855f7;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; touch-action: manipulation; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 12px; }
     .container { max-width: 860px; margin: 0 auto; background: #1e293b; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); position: relative; }
     
@@ -17,11 +17,24 @@
     .btn-home { background: #475569; color: #f8fafc; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
     .btn-home:hover { background: #64748b; }
 
+    /* 대형 팝업 배너 (리치, 쯔모, 론) */
+    #action-banner {
+      position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.7);
+      padding: 18px 36px; border-radius: 16px; font-size: 26px; font-weight: 900;
+      color: #fff; z-index: 9999; pointer-events: none; opacity: 0;
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+    }
+    #action-banner.banner-riichi { background: linear-gradient(135deg, #ef4444, #991b1b); border: 3px solid #fecaca; }
+    #action-banner.banner-tsumo { background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: 3px solid #bfdbfe; }
+    #action-banner.banner-ron { background: linear-gradient(135deg, #10b981, #065f46); border: 3px solid #a7f3d0; }
+    #action-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+
     .scoreboard { display: flex; justify-content: space-around; align-items: center; background: #0f172a; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
     .score-box { text-align: center; padding: 6px 16px; border-radius: 8px; transition: all 0.3s; }
     .player-label { font-size: 15px; font-weight: bold; color: #94a3b8; transition: color 0.3s; }
     
-    /* 턴인 플레이어 발광 효과 */
     .score-box.active-turn {
       background: rgba(59, 130, 246, 0.15);
       border: 1px solid rgba(56, 189, 248, 0.4);
@@ -100,7 +113,12 @@
     .settlement-card.win { border-left-color: #4ade80; }
     .settlement-card.incidental { border-left-color: #facc15; }
 
-    /* 도미노 미니 그래픽 예시 스타일 */
+    /* 바닥패 가져감 알림 배지 */
+    .taken-notice-badge {
+      background: #854d0e; color: #fef08a; padding: 3px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: bold; margin-left: 6px; display: inline-block;
+    }
+
     .yaku-guide-wrap { margin-top: 24px; background: #0f172a; border-radius: 12px; padding: 18px; border: 1px solid #334155; }
     .yaku-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
     .yaku-header h3 { margin: 0; color: #38bdf8; font-size: 16px; }
@@ -126,7 +144,6 @@
     .m-group-sep { color: #64748b; font-size: 12px; font-weight: bold; padding: 0 1px; }
     .m-arrow { color: #38bdf8; font-size: 12px; margin-left: 2px; }
 
-    /* 모드 선택 카드 */
     .mode-select-box { display: flex; gap: 16px; justify-content: center; margin: 30px 0; }
     .mode-btn-card {
       background: #0f172a; border: 2px solid #3b82f6; border-radius: 12px;
@@ -136,14 +153,16 @@
   </style>
 </head>
 <body>
+  <!-- 액션 알림 배너 (리치 / 쯔모 / 론) -->
+  <div id="action-banner"></div>
+
   <div class="container">
-    
     <div class="top-nav">
       <button class="btn-home" onclick="actionGoHome()">🏠 로비로 (모드 선택)</button>
       <div id="top-mode-badge" style="font-size: 13px; color: #38bdf8; font-weight: bold;"></div>
     </div>
 
-    <!-- 1. 모드 선택 화면 (메인 홈) -->
+    <!-- 1. 모드 선택 화면 -->
     <div id="mode-panel" style="text-align: center; padding: 30px 0;">
       <h1 style="color: #facc15; margin-bottom: 8px;">🔥 여섯 불꽃 (Six Flames)</h1>
       <p style="color: #94a3b8; margin-bottom: 24px;">플레이 방식을 선택해 주세요</p>
@@ -159,7 +178,7 @@
         </div>
       </div>
 
-      <!-- 1인 모드 난이도 선택창 (기본값 고급으로 설정) -->
+      <!-- 1인 모드 난이도 (기본값: 고급) -->
       <div id="single-diff-setup" style="display: none; background: #0f172a; padding: 20px; border-radius: 10px; max-width: 400px; margin: 0 auto; border: 1px solid #334155;">
         <h3 style="margin-top: 0; color: #facc15;">🤖 AI 난이도 설정</h3>
         <div style="margin: 15px 0;">
@@ -171,7 +190,7 @@
       </div>
     </div>
 
-    <!-- 2. 게임 설정 로비 화면 -->
+    <!-- 2. 게임 설정 로비 화면 (단계별 룰 포함) -->
     <div id="lobby-panel" style="display:none; text-align:center; padding: 20px 0;">
       <h2 id="lobby-heading">🔥 대전 준비 로비</h2>
       
@@ -179,15 +198,25 @@
         <span id="lobby-my-role" style="background:#3b82f6; color:#fff; padding:6px 14px; border-radius:20px; font-weight:bold; font-size:14px;"></span>
       </div>
 
-      <p style="color:#94a3b8; font-size:13px;" id="lobby-subtext">설정을 조작한 후 준비 완료를 눌러주세요.</p>
-      
+      <div style="background:#0f172a; padding:14px; border-radius:10px; border:1px solid #334155; margin: 15px auto; max-width: 580px; text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <label style="font-weight:bold; color:#facc15;">📜 적용 룰 단계:</label>
+          <select id="sel-rule-level" onchange="onRuleLevelChanged()" style="padding:4px 8px; border-radius:4px; border:1px solid #475569; background:#1e293b; color:#fff; font-weight:bold;">
+            <option value="1">1단계 (입문: 일색, 삼연, 육화)</option>
+            <option value="2">2단계 (+ 삼색, 삼동, 휘광)</option>
+            <option value="3">3단계 (+ 무쌍, 리치, 론)</option>
+            <option value="4" selected>4단계 (전체 룰: + 개화, 연쇄)</option>
+          </select>
+        </div>
+        <div id="rule-level-desc" style="font-size:12px; color:#cbd5e1; line-height:1.5;"></div>
+      </div>
+
       <div id="lobby-settings" style="margin: 15px 0;">
         <label>목표 점수: </label>
         <input type="number" id="inp-target" value="10" min="1" max="999" 
                oninput="sendSettings()" 
                style="width: 70px; padding: 4px; text-align: center; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff; font-weight: bold; margin-right: 15px;">
         
-        <!-- 1인 모드 시: AI 딜레이 드롭다운 -->
         <span id="single-delay-wrap" style="display:none;">
           <label>AI 딜레이: </label>
           <select id="sel-ai-delay" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
@@ -199,7 +228,6 @@
           </select>
         </span>
 
-        <!-- 2인 모드 시: 턴 제한 시간 드롭다운 -->
         <span id="multi-time-wrap">
           <label>턴 제한 시간: </label>
           <select id="sel-time" onchange="sendSettings()" style="padding: 4px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #fff;">
@@ -224,7 +252,7 @@
           <div id="p1-riichi-tag"></div>
         </div>
         <div style="text-align: center;">
-          <div style="font-size: 12px; color:#94a3b8;">목표: <span id="target-score-txt">10</span>점</div>
+          <div style="font-size: 12px; color:#94a3b8;">목표: <span id="target-score-txt">10</span>점 (<span id="in-game-level-txt">4단계</span>)</div>
           <div class="timer-badge" id="timer-box">⏱ <span id="timer-val">60</span>s</div>
         </div>
         <div class="score-box" id="p2-score-box">
@@ -240,7 +268,11 @@
       <div class="hand-container" id="opp-hand"></div>
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin: 6px 0;">
-        <span class="sec-label">버려진 패 (바닥) <span id="discard-hint" style="color:#4ade80; font-size:11px; display:none;">- 클릭해서 가져오기 가능</span></span>
+        <span class="sec-label">
+          버려진 패 (바닥)
+          <span id="discard-hint" style="color:#4ade80; font-size:11px; display:none;">- 클릭해서 가져오기 가능</span>
+          <span id="last-taken-badge" class="taken-notice-badge" style="display:none;"></span>
+        </span>
         <span style="font-size: 13px;">남은 패산: <strong id="deck-count" style="color:#ef4444;">0</strong>장</span>
       </div>
       <div class="discards-box" id="discards"></div>
@@ -275,31 +307,17 @@
         </div>
       </div>
 
-      <!-- 접기/열기 가능한 역 일람표 (동형 제거 완료) -->
+      <!-- 접기/열기 가능한 역 일람표 (선택 단계에 따라 동적 필터링) -->
       <div class="yaku-guide-wrap">
         <div class="yaku-header" onclick="toggleYakuGuide()">
-          <h3>📜 역(족보) 일람 및 예시 안내</h3>
+          <h3>📜 <span id="guide-level-label">4단계 전체</span> 역(족보) 일람 안내</h3>
           <button type="button" class="btn-toggle-guide" id="btn-toggle-guide">설명서 접기 ▲</button>
         </div>
         
         <div class="yaku-grid" id="yaku-grid">
-          <!-- 무쌍 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>무쌍</span> <span>9점 (3+★6)</span></div>
-            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤</div>
-            <div class="visual-example">
-              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
-              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
-            </div>
-          </div>
-
-          <!-- 개화 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>개화 (하우스 룰)</span> <span>8점 + ★보너스</span></div>
+          <!-- 4단계: 개화 -->
+          <div class="yaku-card" data-level="4">
+            <div class="yaku-title"><span>개화 (4단계)</span> <span>8점 + ★보너스</span></div>
             <div class="yaku-desc">위쪽은 1~6, 아래쪽은 6~1로 마주 보며 피어나는 형태</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-6">6</div></div>
@@ -311,9 +329,9 @@
             </div>
           </div>
 
-          <!-- 연쇄 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>연쇄 (하우스 룰)</span> <span>6점 (보너스 무시)</span></div>
+          <!-- 4단계: 연쇄 -->
+          <div class="yaku-card" data-level="4">
+            <div class="yaku-title"><span>연쇄 (4단계)</span> <span>6점 (보너스 무시)</span></div>
             <div class="yaku-desc">1부터 6까지 꼬리를 물며 순환하는 도미노 체인</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
@@ -325,10 +343,68 @@
             </div>
           </div>
 
-          <!-- 육화 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>육화</span> <span>6점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속</div>
+          <!-- 3단계: 무쌍 -->
+          <div class="yaku-card" data-level="3">
+            <div class="yaku-title"><span>무쌍 (3단계)</span> <span>9점 (3+★6)</span></div>
+            <div class="yaku-desc">1부터 6까지 모든 별(더블) 타일을 1장씩 맞춤[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
+            </div>
+          </div>
+
+          <!-- 2단계: 휘광 -->
+          <div class="yaku-card" data-level="2">
+            <div class="yaku-title"><span>휘광 (2단계)</span> <span>5점 (보너스 무시)</span></div>
+            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
+              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
+            </div>
+          </div>
+
+          <!-- 2단계: 삼동 -->
+          <div class="yaku-card" data-level="2">
+            <div class="yaku-title"><span>삼동 (2단계)</span> <span>5점 + ★보너스</span></div>
+            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <span class="m-group-sep">|</span>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
+              <span class="m-group-sep">|</span>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
+              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
+            </div>
+          </div>
+
+          <!-- 2단계: 삼색 -->
+          <div class="yaku-card" data-level="2">
+            <div class="yaku-title"><span>삼색 (2단계)</span> <span>3점 (겸사겸사 전용)</span></div>
+            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)[cite: 4]</div>
+            <div class="visual-example">
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
+              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
+              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
+              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
+            </div>
+          </div>
+
+          <!-- 1단계: 육화 -->
+          <div class="yaku-card" data-level="1">
+            <div class="yaku-title"><span>육화 (1단계)</span> <span>6점 + ★보너스</span></div>
+            <div class="yaku-desc">아래쪽이 모두 동일하고, 위쪽이 1~6 순서로 연속[cite: 4]</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
@@ -340,40 +416,10 @@
             </div>
           </div>
 
-          <!-- 삼동 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>삼동</span> <span>5점 + ★보너스</span></div>
-            <div class="yaku-desc">같은 타일 짝(페어) 3벌을 완성</div>
-            <div class="visual-example">
-              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
-              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
-              <span class="m-group-sep">|</span>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"></div><div class="m-half num-5">5</div></div>
-              <span class="m-group-sep">|</span>
-              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
-              <div class="m-tile"><div class="m-half num-6">6</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-6">6</div></div>
-            </div>
-          </div>
-
-          <!-- 휘광 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>휘광</span> <span>5점 (보너스 무시)</span></div>
-            <div class="yaku-desc">타일 6개 전부 위/아래가 같은 별(★) 타일로만 구성</div>
-            <div class="visual-example">
-              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-1">1</div></div>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-2">2</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-3">3</div></div>
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
-              <div class="m-tile"><div class="m-half num-5">5</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-5">5</div></div>
-            </div>
-          </div>
-
-          <!-- 삼연 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>삼연</span> <span>3점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌</div>
+          <!-- 1단계: 삼연 -->
+          <div class="yaku-card" data-level="1">
+            <div class="yaku-title"><span>삼연 (1단계)</span> <span>3점 + ★보너스</span></div>
+            <div class="yaku-desc">아래쪽이 같고 위쪽이 연속되는 3장 세트 2벌[cite: 4]</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
@@ -385,24 +431,10 @@
             </div>
           </div>
 
-          <!-- 삼색 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>삼색</span> <span>3점 (겸사겸사 전용)</span></div>
-            <div class="yaku-desc">위/아래 쓰인 숫자가 단 3종류뿐인 구성 (보너스 무시)</div>
-            <div class="visual-example">
-              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-2">2</div></div>
-              <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
-              <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-3">3</div></div>
-              <div class="m-tile"><div class="m-half num-3">3</div><div class="m-divider"></div><div class="m-half num-1">1</div></div>
-            </div>
-          </div>
-
-          <!-- 일색 -->
-          <div class="yaku-card">
-            <div class="yaku-title"><span>일색</span> <span>1점 + ★보너스</span></div>
-            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)</div>
+          <!-- 1단계: 일색 -->
+          <div class="yaku-card" data-level="1">
+            <div class="yaku-title"><span>일색 (1단계)</span> <span>1점 + ★보너스</span></div>
+            <div class="yaku-desc">아래쪽 숫자가 6개 모두 동일 (위쪽 숫자는 무관)[cite: 4]</div>
             <div class="visual-example">
               <div class="m-tile"><div class="m-half num-1">1</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
               <div class="m-tile"><div class="m-half num-2">2</div><div class="m-divider"></div><div class="m-half num-4">4</div></div>
@@ -413,16 +445,12 @@
             </div>
           </div>
 
-          <!-- 보너스 -->
-          <div class="yaku-card" style="border-color:#38bdf8;">
-            <div class="yaku-title"><span style="color:#38bdf8;">★ 보너스 & 리치</span> <span>각 +1점</span></div>
-            <div class="yaku-desc">
-              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)<br>
-              • <strong>리치</strong>: 텐파이 상태에서 선언 후 완성 시 +1점
-            </div>
-            <div class="visual-example" style="justify-content: flex-start; gap: 8px;">
-              <div class="m-tile"><div class="m-half num-4">4</div><div class="m-divider"><span class="m-star">★</span></div><div class="m-half num-4">4</div></div>
-              <span style="font-size:12px; color:#cbd5e1;">더블 타일 = <strong>★ +1점</strong></span>
+          <!-- 보너스 & 특수 룰 안내 -->
+          <div class="yaku-card" data-level="1" style="border-color:#38bdf8;">
+            <div class="yaku-title"><span style="color:#38bdf8;">★ 보너스 및 단계별 특수 룰</span></div>
+            <div class="yaku-desc" id="guide-bonus-desc">
+              • <strong>★ 보너스</strong>: 완성된 타일 중 위/아래가 같은 더블 타일 1개당 +1점 (휘광/삼색/연쇄 제외)[cite: 4]<br>
+              • <strong>3~4단계 전용</strong>: 텐파이 시 [리치] 선언 가능(+1점), 상대 버림패로 [론] 선언 가능[cite: 2]
             </div>
           </div>
         </div>
@@ -431,7 +459,7 @@
   </div>
 
   <script>
-    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    let ws = null;
     let myPlayer = null;
     let isMyTurn = false;
     let currentPhase = '';
@@ -441,6 +469,398 @@
     let currentHand = [];
     let draggedTileId = null;
     let isGuideOpen = true;
+    let currentRuleLevel = 4;
+    let lastSelectedMode = 'none';
+    let lastSelectedDiff = 'high';
+
+    const levelDescriptions = {
+      1: "🐣 <strong>1단계 (입문)</strong>: 기초적인 족보만 적용됩니다. (일색, 삼연, 육화)<br>※ 리치/론/개화/무쌍 등은 비활성화됩니다.",
+      2: "🐥 <strong>2단계 (초급)</strong>: 1단계 + 삼색, 삼동, 휘광이 추가됩니다.<br>※ 도미노의 페어(★) 맞추기 재미를 배울 수 있습니다.",
+      3: "🦅 <strong>3단계 (중급)</strong>: 2단계 + 무쌍 및 본격적인 <strong>[리치]</strong>와 <strong>[론]</strong>(점수 강탈) 룰이 개방됩니다.",
+      4: "👑 <strong>4단계 (전체 룰 - 권장)</strong>: 모든 룰 활성화 (3단계 + 최고난도 역인 <strong>개화</strong>와 <strong>연쇄</strong> 포함)"
+    };
+
+    function connectWebSocket() {
+      ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+      
+      ws.onopen = () => {
+        // 모바일 자동 복귀 시 직전 선택 모드가 있었다면 재요청
+        if (lastSelectedMode !== 'none') {
+          ws.send(JSON.stringify({ action: 'select_mode', mode: lastSelectedMode, diff: lastSelectedDiff }));
+        }
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'pong' || data.type === 'full') {
+          if (data.type === 'full') alert(data.msg);
+          return;
+        }
+
+        // 대형 팝업 배너 표시 (리치, 쯔모, 론)
+        if (data.event_banner) {
+          triggerActionBanner(data.event_banner.type, data.event_banner.text);
+        }
+
+        if (data.mode === 'none') {
+          document.getElementById('mode-panel').style.display = 'block';
+          document.getElementById('lobby-panel').style.display = 'none';
+          document.getElementById('game-panel').style.display = 'none';
+          document.getElementById('single-diff-setup').style.display = 'none';
+          document.getElementById('top-mode-badge').innerText = '';
+          myPlayer = null;
+          lastSelectedMode = 'none';
+          return;
+        }
+
+        lastSelectedMode = data.mode;
+        lastSelectedDiff = data.ai_diff || 'high';
+        myPlayer = data.player_num;
+        isMyTurn = data.my_turn;
+        currentPhase = data.phase;
+        myRiichiActive = data.riichi[myPlayer];
+        lastDrawnId = data.last_drawn_id;
+        currentHand = data.my_hand || [];
+        currentRuleLevel = data.rule_level || 4;
+
+        updateRuleLevelUI(currentRuleLevel);
+
+        const topBadge = document.getElementById('top-mode-badge');
+        if (data.mode === 'single') {
+          const diffKo = { 'low': '하', 'mid': '중', 'high': '상' }[data.ai_diff];
+          topBadge.innerText = `🤖 1인 모드 (난이도: ${diffKo} | ${currentRuleLevel}단계)`;
+        } else if (data.mode === 'multi') {
+          topBadge.innerText = `👥 2인 모드 (${currentRuleLevel}단계)`;
+        }
+
+        // 로비 화면
+        if (!data.game_started) {
+          document.getElementById('mode-panel').style.display = 'none';
+          document.getElementById('lobby-panel').style.display = 'block';
+          document.getElementById('game-panel').style.display = 'none';
+
+          const roleEl = document.getElementById('lobby-my-role');
+          const singleDelayWrap = document.getElementById('single-delay-wrap');
+          const multiTimeWrap = document.getElementById('multi-time-wrap');
+
+          if (data.mode === 'single') {
+            roleEl.innerText = `👤 나 (1P) vs 🤖 AI (2P)`;
+            document.getElementById('lobby-heading').innerText = '🔥 1인 연습 대전 준비';
+            singleDelayWrap.style.display = 'inline';
+            multiTimeWrap.style.display = 'none';
+            document.getElementById('sel-ai-delay').value = data.ai_delay_setting || '0';
+          } else {
+            roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
+            document.getElementById('lobby-heading').innerText = '🔥 2인 온라인 대전 로비';
+            singleDelayWrap.style.display = 'none';
+            multiTimeWrap.style.display = 'inline';
+            document.getElementById('sel-time').value = data.time_limit;
+          }
+
+          if (document.activeElement !== document.getElementById('inp-target')) {
+            document.getElementById('inp-target').value = data.target_score;
+          }
+          document.getElementById('sel-rule-level').value = currentRuleLevel;
+
+          document.getElementById('btn-lobby-ready').disabled = data.ready[myPlayer];
+          document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 시작 / 준비';
+          
+          if (data.mode === 'single') {
+            document.getElementById('lobby-status').innerText = '준비 완료를 누르면 바로 대전이 시작됩니다.';
+          } else {
+            document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+          }
+          return;
+        }
+
+        // 인게임 화면
+        document.getElementById('mode-panel').style.display = 'none';
+        document.getElementById('lobby-panel').style.display = 'none';
+        document.getElementById('game-panel').style.display = 'block';
+        document.getElementById('in-game-level-txt').innerText = `${currentRuleLevel}단계`;
+
+        if (currentPhase === 'draw' && !myRiichiActive) {
+          riichiPending = false;
+          document.getElementById('btn-riichi').style.outline = 'none';
+        }
+
+        document.getElementById('p1-score').innerText = `${data.scores[1]}점`;
+        document.getElementById('p2-score').innerText = `${data.scores[2]}점`;
+        document.getElementById('target-score-txt').innerText = data.target_score;
+        document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
+        document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
+
+        if (data.mode === 'single') {
+          document.getElementById('p1-label').innerText = '나 (1P)';
+          document.getElementById('p2-label').innerText = 'AI (2P)';
+        } else {
+          document.getElementById('p1-label').innerText = (myPlayer === 1) ? '1P (나)' : '1P';
+          document.getElementById('p2-label').innerText = (myPlayer === 2) ? '2P (나)' : '2P';
+        }
+
+        const p1Box = document.getElementById('p1-score-box');
+        const p2Box = document.getElementById('p2-score-box');
+        if (data.game_started && !data.show_all) {
+          if (data.current_turn === 1) {
+            p1Box.classList.add('active-turn');
+            p2Box.classList.remove('active-turn');
+          } else {
+            p2Box.classList.add('active-turn');
+            p1Box.classList.remove('active-turn');
+          }
+        } else {
+          p1Box.classList.remove('active-turn');
+          p2Box.classList.remove('active-turn');
+        }
+
+        const timerBox = document.getElementById('timer-box');
+        if (data.mode === 'single') {
+          timerBox.style.display = 'none';
+        } else if (data.time_limit > 0) {
+          timerBox.style.display = 'inline-flex';
+          document.getElementById('timer-val').innerText = data.time_left;
+          if (data.time_left <= 10) timerBox.classList.add('timer-warn');
+          else timerBox.classList.remove('timer-warn');
+        } else {
+          timerBox.style.display = 'none';
+        }
+
+        // 바닥에서 가져간 패 표시
+        const takenBadge = document.getElementById('last-taken-badge');
+        if (data.last_taken_discard) {
+          const byWhom = (data.last_taken_discard.by === myPlayer) ? '내가' : (data.mode === 'single' ? 'AI가' : '상대가');
+          const t = data.last_taken_discard.tile;
+          takenBadge.style.display = 'inline-block';
+          takenBadge.innerText = `${byWhom} [${t.top}/${t.bottom}] 주워감`;
+        } else {
+          takenBadge.style.display = 'none';
+        }
+
+        const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
+        document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
+
+        // 상태바 안내
+        if (data.status_notice) {
+          document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-size:15px; font-weight:bold;">${data.status_notice}</span>`;
+        } else if (data.show_all) {
+          document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
+        } else if (isMyTurn) {
+          if (currentPhase === 'draw') {
+            if (data.can_ron) {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">내 차례: [론 선언]이 가능합니다! 또는 [패 뽑기]를 진행하세요</span>`;
+            } else {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
+            }
+          } else {
+            if (riichiPending) {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
+            } else {
+              document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
+            }
+          }
+        } else {
+          const oppName = (data.mode === 'single') ? 'AI' : '상대방';
+          document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
+        }
+
+        document.getElementById('deck-count').innerText = data.deck_count;
+        document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
+
+        // 리치 버튼 (3단계 이상에서만 활성화)
+        const btnRiichi = document.getElementById('btn-riichi');
+        if (currentRuleLevel >= 3) {
+          btnRiichi.style.display = 'inline-block';
+          if (myRiichiActive) {
+            btnRiichi.disabled = true;
+            btnRiichi.innerText = '리치 완료';
+            btnRiichi.style.outline = 'none';
+          } else {
+            btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard');
+            btnRiichi.innerText = riichiPending ? '리치 취소' : '리치 선언';
+          }
+        } else {
+          btnRiichi.style.display = 'none';
+        }
+
+        document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
+        document.getElementById('ron-modal').style.display = (currentRuleLevel >= 3 && data.can_ron) ? 'block' : 'none';
+
+        const yakuBadge = document.getElementById('yaku-badge');
+        if (data.current_yaku) {
+          yakuBadge.style.display = 'inline-block';
+          yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.base_score}점 + ★ ${data.current_yaku.stars}개)`;
+        } else {
+          yakuBadge.style.display = 'none';
+        }
+
+        const discardsDiv = document.getElementById('discards');
+        discardsDiv.innerHTML = '';
+        data.discards.forEach((t, idx) => {
+          const isLast = (idx === data.discards.length - 1);
+          const tileEl = createTileEl(t, false, false, isLast, false);
+          if (canTakeFromDiscard) {
+            tileEl.classList.add('selectable-discard');
+            tileEl.onclick = () => actionDraw(t.id);
+          }
+          discardsDiv.appendChild(tileEl);
+        });
+
+        const oppHandDiv = document.getElementById('opp-hand');
+        oppHandDiv.innerHTML = '';
+        if (data.show_all && data.opp_hand) {
+          document.getElementById('opp-hand-label').innerText = `(${data.opp_hand.length}장 공개)`;
+          data.opp_hand.forEach(t => oppHandDiv.appendChild(createTileEl(t, false, false, false, false)));
+        } else {
+          document.getElementById('opp-hand-label').innerText = '';
+          for (let i = 0; i < data.opp_hand_count; i++) {
+            oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
+          }
+        }
+
+        const myHandDiv = document.getElementById('my-hand');
+        myHandDiv.innerHTML = '';
+        currentHand.forEach((t, idx) => {
+          const isDrawn = (t.id === lastDrawnId);
+          const isLocked = myRiichiActive && (currentHand.length === 6) && (t.id !== lastDrawnId);
+          
+          const wrap = document.createElement('div');
+          wrap.className = 'tile-wrap';
+          wrap.draggable = true;
+
+          wrap.ondragstart = (e) => { draggedTileId = t.id; };
+          wrap.ondragover = (e) => { e.preventDefault(); };
+          wrap.ondrop = (e) => {
+            e.preventDefault();
+            if (draggedTileId && draggedTileId !== t.id) {
+              reorderHand(draggedTileId, t.id);
+            }
+          };
+
+          const leftBtn = document.createElement('div');
+          leftBtn.className = 'tile-ctrl-btn btn-move-left';
+          leftBtn.innerText = '◀';
+          leftBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, -1); };
+
+          const rightBtn = document.createElement('div');
+          rightBtn.className = 'tile-ctrl-btn btn-move-right';
+          rightBtn.innerText = '▶';
+          rightBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, 1); };
+
+          const flipBtn = document.createElement('div');
+          flipBtn.className = 'tile-ctrl-btn btn-flip';
+          flipBtn.innerText = '↻';
+          flipBtn.onclick = (e) => { e.stopPropagation(); actionFlip(t.id); };
+
+          const el = createTileEl(t, true, isLocked, false, isDrawn);
+          wrap.appendChild(leftBtn);
+          wrap.appendChild(rightBtn);
+          wrap.appendChild(flipBtn);
+          wrap.appendChild(el);
+          myHandDiv.appendChild(wrap);
+        });
+
+        const readyPanel = document.getElementById('ready-panel');
+        if (data.show_all) {
+          readyPanel.style.display = 'block';
+          const isGameOver = (data.phase === 'game_over');
+          
+          document.getElementById('panel-title').innerText = isGameOver ? '👑 최종 승리 결정!' : '🏆 라운드 종료 (패 공개 및 점수 정산)';
+          
+          const setList = document.getElementById('settlement-list');
+          setList.innerHTML = '';
+          if (data.settlements && data.settlements.length > 0) {
+            data.settlements.forEach(s => {
+              const card = document.createElement('div');
+              card.className = `settlement-card ${s.type === '겸사겸사' ? 'incidental' : 'win'}`;
+              card.innerText = s.text;
+              setList.appendChild(card);
+            });
+          }
+
+          const btnReady = document.getElementById('btn-ready');
+          if (isGameOver) {
+            btnReady.innerText = '게임 초기화 (새 게임)';
+            btnReady.style.background = '#e11d48';
+            btnReady.disabled = false;
+            document.getElementById('ready-status').innerText = '누구든 클릭 시 로비로 돌아갑니다.';
+          } else {
+            const myReady = data.ready[myPlayer];
+            btnReady.innerText = myReady ? '준비 완료 (대기 중)' : '다음 판 준비';
+            btnReady.style.background = '#10b981';
+            btnReady.disabled = (data.mode === 'multi' && myReady);
+            if (data.mode === 'single') {
+              document.getElementById('ready-status').innerText = '클릭하면 즉시 다음 판을 시작합니다.';
+            } else {
+              document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
+            }
+          }
+        } else {
+          readyPanel.style.display = 'none';
+        }
+      };
+
+      ws.onclose = () => {
+        // 모바일 절전모드 해제 시 즉각 재연결
+        setTimeout(connectWebSocket, 1000);
+      };
+    }
+
+    // 모바일 핑/퐁 킵얼라이브 (3초 주기)
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'ping' }));
+      }
+    }, 3000);
+
+    // 모바일 화면 복귀 시 자동 터치 복구
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          connectWebSocket();
+        } else if (lastSelectedMode !== 'none') {
+          ws.send(JSON.stringify({ action: 'ping' }));
+        }
+      }
+    });
+
+    connectWebSocket();
+
+    function triggerActionBanner(type, text) {
+      const banner = document.getElementById('action-banner');
+      banner.className = '';
+      banner.innerText = text;
+      if (type === 'riichi') banner.classList.add('banner-riichi');
+      else if (type === 'tsumo') banner.classList.add('banner-tsumo');
+      else if (type === 'ron') banner.classList.add('banner-ron');
+      
+      banner.classList.add('show');
+      setTimeout(() => {
+        banner.classList.remove('show');
+      }, 1500);
+    }
+
+    function updateRuleLevelUI(level) {
+      document.getElementById('rule-level-desc').innerHTML = levelDescriptions[level];
+      const levelNames = { 1: "1단계 (입문)", 2: "2단계 (초급)", 3: "3단계 (중급)", 4: "4단계 (전체 룰)" };
+      document.getElementById('guide-level-label').innerText = levelNames[level];
+
+      // 단계별 족보 카드 보이기/숨기기
+      const cards = document.querySelectorAll('.yaku-card');
+      cards.forEach(card => {
+        const cLevel = parseInt(card.getAttribute('data-level'), 10);
+        if (cLevel <= level) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    function onRuleLevelChanged() {
+      const lvl = parseInt(document.getElementById('sel-rule-level').value, 10);
+      updateRuleLevelUI(lvl);
+      sendSettings();
+    }
 
     function openSingleSetup() {
       document.getElementById('single-diff-setup').style.display = 'block';
@@ -471,291 +891,6 @@
         btn.innerText = '설명서 열기 ▼';
       }
     }
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.type === 'full') {
-        alert(data.msg);
-        return;
-      }
-
-      if (data.mode === 'none') {
-        document.getElementById('mode-panel').style.display = 'block';
-        document.getElementById('lobby-panel').style.display = 'none';
-        document.getElementById('game-panel').style.display = 'none';
-        document.getElementById('single-diff-setup').style.display = 'none';
-        document.getElementById('top-mode-badge').innerText = '';
-        myPlayer = null;
-        return;
-      }
-
-      myPlayer = data.player_num;
-      isMyTurn = data.my_turn;
-      currentPhase = data.phase;
-      myRiichiActive = data.riichi[myPlayer];
-      lastDrawnId = data.last_drawn_id;
-      currentHand = data.my_hand || [];
-
-      const topBadge = document.getElementById('top-mode-badge');
-      if (data.mode === 'single') {
-        const diffKo = { 'low': '하', 'mid': '중', 'high': '상' }[data.ai_diff];
-        topBadge.innerText = `🤖 1인 모드 (난이도: ${diffKo})`;
-      } else if (data.mode === 'multi') {
-        topBadge.innerText = `👥 2인 모드 (온라인 대전)`;
-      }
-
-      // 로비 화면 제어
-      if (!data.game_started) {
-        document.getElementById('mode-panel').style.display = 'none';
-        document.getElementById('lobby-panel').style.display = 'block';
-        document.getElementById('game-panel').style.display = 'none';
-
-        const roleEl = document.getElementById('lobby-my-role');
-        const singleDelayWrap = document.getElementById('single-delay-wrap');
-        const multiTimeWrap = document.getElementById('multi-time-wrap');
-
-        if (data.mode === 'single') {
-          roleEl.innerText = `👤 나 (1P) vs 🤖 AI (2P)`;
-          document.getElementById('lobby-heading').innerText = '🔥 1인 연습 대전 준비';
-          document.getElementById('lobby-subtext').innerText = '목표 점수와 AI 딜레이를 조작한 후 게임을 시작하세요.';
-          singleDelayWrap.style.display = 'inline';
-          multiTimeWrap.style.display = 'none';
-          document.getElementById('sel-ai-delay').value = data.ai_delay_setting || '0';
-        } else {
-          roleEl.innerText = `접속 완료: 나는 ${myPlayer}P 입니다`;
-          document.getElementById('lobby-heading').innerText = '🔥 2인 온라인 대전 로비';
-          document.getElementById('lobby-subtext').innerText = '목표 점수와 턴 제한 시간을 조작한 후 준비 완료를 눌러주세요.';
-          singleDelayWrap.style.display = 'none';
-          multiTimeWrap.style.display = 'inline';
-          document.getElementById('sel-time').value = data.time_limit;
-        }
-
-        if (document.activeElement !== document.getElementById('inp-target')) {
-          document.getElementById('inp-target').value = data.target_score;
-        }
-
-        document.getElementById('btn-lobby-ready').disabled = data.ready[myPlayer];
-        document.getElementById('btn-lobby-ready').innerText = data.ready[myPlayer] ? '준비 완료 (대기 중)' : '게임 시작 / 준비';
-        
-        if (data.mode === 'single') {
-          document.getElementById('lobby-status').innerText = '준비 완료를 누르면 바로 대전이 시작됩니다.';
-        } else {
-          document.getElementById('lobby-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
-        }
-        return;
-      }
-
-      document.getElementById('mode-panel').style.display = 'none';
-      document.getElementById('lobby-panel').style.display = 'none';
-      document.getElementById('game-panel').style.display = 'block';
-
-      if (currentPhase === 'draw' && !myRiichiActive) {
-        riichiPending = false;
-        document.getElementById('btn-riichi').style.outline = 'none';
-      }
-
-      document.getElementById('p1-score').innerText = `${data.scores[1]}점`;
-      document.getElementById('p2-score').innerText = `${data.scores[2]}점`;
-      document.getElementById('target-score-txt').innerText = data.target_score;
-      document.getElementById('p1-riichi-tag').innerHTML = data.riichi[1] ? '<span class="riichi-badge">리치</span>' : '';
-      document.getElementById('p2-riichi-tag').innerHTML = data.riichi[2] ? '<span class="riichi-badge">리치</span>' : '';
-
-      if (data.mode === 'single') {
-        document.getElementById('p1-label').innerText = '나 (1P)';
-        document.getElementById('p2-label').innerText = 'AI (2P)';
-      } else {
-        document.getElementById('p1-label').innerText = (myPlayer === 1) ? '1P (나)' : '1P';
-        document.getElementById('p2-label').innerText = (myPlayer === 2) ? '2P (나)' : '2P';
-      }
-
-      const p1Box = document.getElementById('p1-score-box');
-      const p2Box = document.getElementById('p2-score-box');
-      if (data.game_started && !data.show_all) {
-        if (data.current_turn === 1) {
-          p1Box.classList.add('active-turn');
-          p2Box.classList.remove('active-turn');
-        } else {
-          p2Box.classList.add('active-turn');
-          p1Box.classList.remove('active-turn');
-        }
-      } else {
-        p1Box.classList.remove('active-turn');
-        p2Box.classList.remove('active-turn');
-      }
-
-      const timerBox = document.getElementById('timer-box');
-      if (data.mode === 'single') {
-        timerBox.style.display = 'none';
-      } else if (data.time_limit > 0) {
-        timerBox.style.display = 'inline-flex';
-        document.getElementById('timer-val').innerText = data.time_left;
-        if (data.time_left <= 10) timerBox.classList.add('timer-warn');
-        else timerBox.classList.remove('timer-warn');
-      } else {
-        timerBox.style.display = 'none';
-      }
-
-      const canTakeFromDiscard = isMyTurn && currentPhase === 'draw' && data.discards.length > 0;
-      document.getElementById('discard-hint').style.display = canTakeFromDiscard ? 'inline' : 'none';
-
-      // 상태 안내 바 렌더링
-      if (data.status_notice) {
-        document.getElementById('status-bar').innerHTML = `<span style="color:#38bdf8; font-size:15px; font-weight:bold;">${data.status_notice}</span>`;
-      } else if (data.show_all) {
-        document.getElementById('status-bar').innerText = data.phase === 'game_over' ? '🏆 최종 승리 게임 종료!' : '라운드 종료 (양측 패 공개)';
-      } else if (isMyTurn) {
-        if (currentPhase === 'draw') {
-          if (data.can_ron) {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15;">내 차례: [론 선언]이 가능합니다! 또는 [패 뽑기]를 진행하세요</span>`;
-          } else {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">내 차례: [패 뽑기]를 누르거나 바닥 패를 클릭하세요</span>`;
-          }
-        } else {
-          if (riichiPending) {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#facc15; font-size:16px;">🔥 [리치 선언 중] 버릴 패를 선택하면 리치가 확정됩니다!</span>`;
-          } else {
-            document.getElementById('status-bar').innerHTML = `<span style="color:#4ade80;">버릴 패를 클릭하세요</span>`;
-          }
-        }
-      } else {
-        const oppName = (data.mode === 'single') ? 'AI' : '상대방';
-        document.getElementById('status-bar').innerHTML = `<span style="color:#94a3b8;">${oppName} 차례 진행 중...</span>`;
-      }
-
-      document.getElementById('deck-count').innerText = data.deck_count;
-      document.getElementById('btn-draw').disabled = !(isMyTurn && currentPhase === 'draw');
-
-      const btnRiichi = document.getElementById('btn-riichi');
-      btnRiichi.style.display = 'inline-block';
-      if (myRiichiActive) {
-        btnRiichi.disabled = true;
-        btnRiichi.innerText = '리치 완료';
-        btnRiichi.style.outline = 'none';
-      } else {
-        btnRiichi.disabled = !(isMyTurn && currentPhase === 'discard');
-        btnRiichi.innerText = riichiPending ? '리치 취소' : '리치 선언';
-      }
-
-      document.getElementById('btn-tsumo').style.display = data.can_tsumo ? 'inline-block' : 'none';
-      document.getElementById('ron-modal').style.display = data.can_ron ? 'block' : 'none';
-
-      const yakuBadge = document.getElementById('yaku-badge');
-      if (data.current_yaku) {
-        yakuBadge.style.display = 'inline-block';
-        yakuBadge.innerText = `현재 완성: [${data.current_yaku.name}] (${data.current_yaku.base_score}점 + ★ ${data.current_yaku.stars}개)`;
-      } else {
-        yakuBadge.style.display = 'none';
-      }
-
-      const discardsDiv = document.getElementById('discards');
-      discardsDiv.innerHTML = '';
-      data.discards.forEach((t, idx) => {
-        const isLast = (idx === data.discards.length - 1);
-        const tileEl = createTileEl(t, false, false, isLast, false);
-        if (canTakeFromDiscard) {
-          tileEl.classList.add('selectable-discard');
-          tileEl.onclick = () => actionDraw(t.id);
-        }
-        discardsDiv.appendChild(tileEl);
-      });
-
-      const oppHandDiv = document.getElementById('opp-hand');
-      oppHandDiv.innerHTML = '';
-      if (data.show_all && data.opp_hand) {
-        document.getElementById('opp-hand-label').innerText = `(${data.opp_hand.length}장 공개)`;
-        data.opp_hand.forEach(t => oppHandDiv.appendChild(createTileEl(t, false, false, false, false)));
-      } else {
-        document.getElementById('opp-hand-label').innerText = '';
-        for (let i = 0; i < data.opp_hand_count; i++) {
-          oppHandDiv.innerHTML += '<div class="tile tile-back"></div>';
-        }
-      }
-
-      const myHandDiv = document.getElementById('my-hand');
-      myHandDiv.innerHTML = '';
-      currentHand.forEach((t, idx) => {
-        const isDrawn = (t.id === lastDrawnId);
-        const isLocked = myRiichiActive && (currentHand.length === 6) && (t.id !== lastDrawnId);
-        
-        const wrap = document.createElement('div');
-        wrap.className = 'tile-wrap';
-        wrap.draggable = true;
-
-        wrap.ondragstart = (e) => { draggedTileId = t.id; };
-        wrap.ondragover = (e) => { e.preventDefault(); };
-        wrap.ondrop = (e) => {
-          e.preventDefault();
-          if (draggedTileId && draggedTileId !== t.id) {
-            reorderHand(draggedTileId, t.id);
-          }
-        };
-
-        const leftBtn = document.createElement('div');
-        leftBtn.className = 'tile-ctrl-btn btn-move-left';
-        leftBtn.innerText = '◀';
-        leftBtn.title = '왼쪽으로 이동';
-        leftBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, -1); };
-
-        const rightBtn = document.createElement('div');
-        rightBtn.className = 'tile-ctrl-btn btn-move-right';
-        rightBtn.innerText = '▶';
-        rightBtn.title = '오른쪽으로 이동';
-        rightBtn.onclick = (e) => { e.stopPropagation(); moveTileRelative(idx, 1); };
-
-        const flipBtn = document.createElement('div');
-        flipBtn.className = 'tile-ctrl-btn btn-flip';
-        flipBtn.innerText = '↻';
-        flipBtn.title = '위아래 뒤집기';
-        flipBtn.onclick = (e) => { e.stopPropagation(); actionFlip(t.id); };
-
-        const el = createTileEl(t, true, isLocked, false, isDrawn);
-        wrap.appendChild(leftBtn);
-        wrap.appendChild(rightBtn);
-        wrap.appendChild(flipBtn);
-        wrap.appendChild(el);
-        myHandDiv.appendChild(wrap);
-      });
-
-      const readyPanel = document.getElementById('ready-panel');
-      if (data.show_all) {
-        readyPanel.style.display = 'block';
-        const isGameOver = (data.phase === 'game_over');
-        
-        document.getElementById('panel-title').innerText = isGameOver ? '👑 최종 승리 결정!' : '🏆 라운드 종료 (패 공개 및 점수 정산)';
-        
-        const setList = document.getElementById('settlement-list');
-        setList.innerHTML = '';
-        if (data.settlements && data.settlements.length > 0) {
-          data.settlements.forEach(s => {
-            const card = document.createElement('div');
-            card.className = `settlement-card ${s.type === '겸사겸사' ? 'incidental' : 'win'}`;
-            card.innerText = s.text;
-            setList.appendChild(card);
-          });
-        }
-
-        const btnReady = document.getElementById('btn-ready');
-        if (isGameOver) {
-          btnReady.innerText = '게임 초기화 (새 게임)';
-          btnReady.style.background = '#e11d48';
-          btnReady.disabled = false;
-          document.getElementById('ready-status').innerText = '누구든 클릭 시 로비로 돌아갑니다.';
-        } else {
-          const myReady = data.ready[myPlayer];
-          btnReady.innerText = myReady ? '준비 완료 (대기 중)' : '다음 판 준비';
-          btnReady.style.background = '#10b981';
-          btnReady.disabled = (data.mode === 'multi' && myReady);
-          if (data.mode === 'single') {
-            document.getElementById('ready-status').innerText = '클릭하면 즉시 다음 판을 시작합니다.';
-          } else {
-            document.getElementById('ready-status').innerText = `1P: ${data.ready[1] ? '준비됨' : '준비 중'} | 2P: ${data.ready[2] ? '준비됨' : '준비 중'}`;
-          }
-        }
-      } else {
-        readyPanel.style.display = 'none';
-      }
-    };
 
     function createTileEl(t, isHand, isLocked, isLastDiscard, isDrawn) {
       const el = document.createElement('div');
@@ -821,9 +956,7 @@
     }
 
     function discardTile(tileId) {
-      if (!isMyTurn || currentPhase !== 'discard') {
-        return;
-      }
+      if (!isMyTurn || currentPhase !== 'discard') return;
       ws.send(JSON.stringify({ action: 'discard', tile_id: tileId, riichi: riichiPending }));
       riichiPending = false;
       document.getElementById('btn-riichi').style.outline = 'none';
@@ -854,7 +987,14 @@
       if (isNaN(scoreVal) || scoreVal <= 0) scoreVal = 1;
       const timeVal = document.getElementById('sel-time').value;
       const aiDelayVal = document.getElementById('sel-ai-delay').value;
-      ws.send(JSON.stringify({ action: 'set_settings', score: scoreVal, time: timeVal, ai_delay: aiDelayVal }));
+      const ruleLvl = document.getElementById('sel-rule-level').value;
+      ws.send(JSON.stringify({
+        action: 'set_settings',
+        score: scoreVal,
+        time: timeVal,
+        ai_delay: aiDelayVal,
+        rule_level: ruleLvl
+      }));
     }
   </script>
 </body>
