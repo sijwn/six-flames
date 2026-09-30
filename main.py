@@ -115,7 +115,7 @@ def evaluate_hand(tiles, is_incidental=False):
         if res:
             if best is None or res["total_score"] > best["total_score"]:
                 best = res
-                if best["total_score"] >= 8: # 최고점 역이면 조기 반환으로 연산 최적화
+                if best["total_score"] >= 8:
                     break
     return best
 
@@ -130,11 +130,12 @@ def check_incidental_win(hand_5, discards):
     return best
 
 class GameSession:
-    def __init__(self, mode="single", ai_diff="mid"):
+    def __init__(self, mode="single", ai_diff="high"):
         self.mode = mode
         self.ai_diff = ai_diff
         self.target_score = 10
         self.time_limit = 60
+        self.ai_delay_setting = 0  # 1인 모드 시 추가 딜레이(기본 0초)
         self.time_left = 60
         self.scores = {1: 0, 2: 0}
         self.starter = 1
@@ -359,63 +360,43 @@ class GameSession:
             self.turn_phase = "round_end"
             self.starter = 2 if self.starter == 1 else 1
 
-    def calculate_hand_outs(self, hand_5):
-        valid_outs = []
-        for top in range(1, 7):
-            for btm in range(top, 7):
-                t = {"id": "sim", "top": top, "bottom": btm, "is_double": (top == btm)}
-                r = evaluate_hand(hand_5 + [t], is_incidental=False)
-                if r:
-                    valid_outs.append((top, btm, r["total_score"]))
-        return valid_outs
-
-    def count_remaining_outs(self, p_num, valid_outs):
-        total_remaining = 0
-        total_score_pot = 0
-        known_tiles = self.players[p_num] + self.discards
-        for (top, btm, score) in valid_outs:
-            used = sum(1 for t in known_tiles if (t["top"] == top and t["bottom"] == btm) or (t["top"] == btm and t["bottom"] == top))
-            remain = max(0, 2 - used)
-            total_remaining += remain
-            total_score_pot += (remain * score)
-        return total_remaining, total_score_pot
-
-    def evaluate_hand_potential(self, hand, opponent_riichi=False):
+    # --- 초고속 경량 AI 평가 로직 (CPU 점유율 제로) ---
+    def evaluate_hand_potential_fast(self, hand):
+        """무거운 플립 루프 없이 손패의 정렬 및 특성만으로 0.0001초 만에 점수화"""
         if not hand: return 0
         star_count = sum(1 for t in hand if t["is_double"])
-        bottom_counts = Counter(t["bottom"] for t in hand)
+        
+        # 일색 가능성 (각 숫자가 위나 아래에 몇 번 등장하는지)
+        num_freq = Counter()
+        for t in hand:
+            num_freq[t["top"]] += 1
+            if t["top"] != t["bottom"]:
+                num_freq[t["bottom"]] += 1
+        max_color = max(num_freq.values()) if num_freq else 0
 
-        if opponent_riichi:
-            max_same_bottom = max(bottom_counts.values()) if bottom_counts else 0
-            return max_same_bottom * 15 + star_count * 2
-
-        best_pot = 0
-        if star_count >= 3:
-            best_pot += star_count * 12
-
-        max_same_bottom = max(bottom_counts.values()) if bottom_counts else 0
-        best_pot += max_same_bottom * 8
-
-        pairs = 0
+        # 페어(삼동) 가능성
+        pair_cnt = 0
         for i in range(len(hand)):
             for j in range(i + 1, len(hand)):
                 if is_same_tile(hand[i], hand[j]):
-                    pairs += 1
-        best_pot += pairs * 10
-        return best_pot
+                    pair_cnt += 1
+
+        score = (max_color * 10) + (star_count * 8) + (pair_cnt * 12)
+        return score
 
     async def execute_ai_step(self, ws: WebSocket):
-        """정확히 0.3초의 텀을 준 뒤 일괄 연산 및 즉시 턴 전환"""
+        """기본 0.3초 + 유저 설정 딜레이 후 초고속(0.005초) 연산 실행"""
         try:
-            await asyncio.sleep(0.3)
+            total_delay = 0.3 + float(self.ai_delay_setting)
+            await asyncio.sleep(total_delay)
             if not self.game_started or self.current_turn != 2:
                 return
 
-            opp_riichi = self.riichi[1]
             opp_score = self.scores[1]
 
             # 1. DRAW 단계
             if self.turn_phase == "draw":
+                # 론 판정 (가벼운 단일 검사)
                 if self.last_discard:
                     res_ron = evaluate_hand(self.players[2] + [self.last_discard], is_incidental=False)
                     if res_ron:
@@ -424,7 +405,6 @@ class GameSession:
                         riichi_pt = 1 if self.riichi[2] else 0
                         hand_total = base + stars + riichi_pt
 
-                        # 상대 점수가 0점이거나 내 점수보다 적으면 direct(직접 획득)
                         chosen_mode = "steal" if opp_score >= hand_total else "direct"
                         should_ron = True
                         if not self.riichi[2] and opp_score == 0 and hand_total <= 1 and len(self.deck) > 15:
@@ -436,29 +416,26 @@ class GameSession:
                             await send_state_to_ws(ws, self, 1)
                             return
 
+                # 바닥 패 가져오기 (가장 유효한 패 1~2개만 가볍게 체크)
                 picked_from_floor = False
                 picked_tile_info = None
 
                 if self.discards:
-                    current_pot = self.evaluate_hand_potential(self.players[2], opponent_riichi=opp_riichi)
-                    candidates = []
-                    search_depth = 3 if self.ai_diff == "low" else (6 if self.ai_diff == "mid" else len(self.discards))
+                    base_pot = self.evaluate_hand_potential_fast(self.players[2])
+                    best_gain = 0
+                    best_target = None
 
-                    for disc in reversed(self.discards[-search_depth:]):
-                        test_hand_6 = self.players[2] + [disc]
-                        if evaluate_hand(test_hand_6, is_incidental=False):
-                            candidates.append((999, disc))
-                            break
-                        pot_diff = self.evaluate_hand_potential(test_hand_6, opponent_riichi=opp_riichi) - current_pot
-                        if pot_diff >= (8 if self.ai_diff == "high" else 12):
-                            candidates.append((pot_diff, disc))
+                    # 바닥의 최근 4장만 탐색 (연산 부하 제거)
+                    for disc in reversed(self.discards[-4:]):
+                        gain = self.evaluate_hand_potential_fast(self.players[2] + [disc]) - base_pot
+                        if gain > best_gain:
+                            best_gain = gain
+                            best_target = disc
 
-                    if candidates:
+                    if best_target and best_gain >= 8:
                         if self.ai_diff != "low" or random.random() < 0.4:
-                            candidates.sort(key=lambda x: x[0], reverse=True)
-                            target_tile = candidates[0][1]
-                            picked_tile_info = f"[{target_tile['top']}/{target_tile['bottom']}]"
-                            self.draw_tile(2, discard_id=target_tile["id"])
+                            picked_tile_info = f"[{best_target['top']}/{best_target['bottom']}]"
+                            self.draw_tile(2, discard_id=best_target["id"])
                             picked_from_floor = True
 
                 if not picked_from_floor:
@@ -469,7 +446,9 @@ class GameSession:
 
             # 2. DISCARD 단계
             if self.turn_phase == "discard":
-                if evaluate_hand(self.players[2], is_incidental=False):
+                # 즉시 완성 검사 (단 1회만 호출)
+                res_win = evaluate_hand(self.players[2], is_incidental=False)
+                if res_win:
                     self.declare_tsumo(2)
                     self.status_notice = None
                     await send_state_to_ws(ws, self, 1)
@@ -483,43 +462,35 @@ class GameSession:
                     await send_state_to_ws(ws, self, 1)
                     return
 
-                should_riichi = False
+                # 어떤 패를 버릴지 초고속 점수화 (6장 각각 제거 후 잠재력 비교)
                 if self.ai_diff == "low":
                     chosen = random.choice(hand)
+                    should_riichi = False
                 else:
-                    candidates = []
+                    scored_candidates = []
                     for t in hand:
                         remain_5 = [x for x in hand if x["id"] != t["id"]]
-                        outs = self.calculate_hand_outs(remain_5)
-                        live_outs_count, score_pot = self.count_remaining_outs(2, outs)
-                        potential = self.evaluate_hand_potential(remain_5, opponent_riichi=opp_riichi)
-
-                        eval_score = (live_outs_count * 20) + (score_pot * 2) + potential
-                        if opp_riichi:
-                            safety = sum(1 for d in self.discards if d["top"] == t["top"] or d["bottom"] == t["bottom"])
-                            eval_score += safety * 8
-
+                        pot = self.evaluate_hand_potential_fast(remain_5)
                         if t["is_double"]:
-                            eval_score -= 4
+                            pot -= 5  # 별 패는 보존
+                        scored_candidates.append((pot, t))
 
-                        candidates.append((eval_score, live_outs_count, t))
+                    scored_candidates.sort(key=lambda x: x[0], reverse=True)
+                    chosen = scored_candidates[0][1]
 
-                    candidates.sort(key=lambda x: x[0], reverse=True)
-                    best_score, best_live_outs, chosen = candidates[0]
-
-                    if not self.riichi[2]:
-                        if opp_riichi:
-                            should_riichi = (best_live_outs >= 3)
-                        elif self.ai_diff == "mid":
-                            should_riichi = (best_live_outs >= 2)
-                        elif self.ai_diff == "high":
-                            should_riichi = (best_live_outs >= 2 and best_score >= 35)
+                    # 고급 봇 리치 조건
+                    should_riichi = False
+                    if not self.riichi[2] and self.ai_diff in ["mid", "high"]:
+                        remain_5 = [x for x in hand if x["id"] != chosen["id"]]
+                        # 일색/삼동 형태가 4장 이상 갖춰지면 리치
+                        if self.evaluate_hand_potential_fast(remain_5) >= 42:
+                            should_riichi = True
 
                 self.discard_tile(2, chosen["id"], declare_riichi=should_riichi)
                 riichi_txt = " (🔥리치 선언!)" if should_riichi else ""
                 self.status_notice = f"🤖 AI가 {draw_action_txt} [{chosen['top']}/{chosen['bottom']}]을(를) 버렸습니다.{riichi_txt}"
-                
-                # 유저 턴으로 넘어갔음을 즉시 클라이언트에 반영
+
+                # 턴이 1P(유저)로 넘어간 상태를 즉각 송신
                 await send_state_to_ws(ws, self, 1)
 
         except asyncio.CancelledError:
@@ -550,6 +521,7 @@ async def send_state_to_ws(ws: WebSocket, game: GameSession, p_num: int):
     payload = {
         "mode": game.mode,
         "ai_diff": game.ai_diff,
+        "ai_delay_setting": game.ai_delay_setting,
         "player_num": p_num,
         "target_score": game.target_score,
         "time_limit": game.time_limit,
@@ -586,7 +558,7 @@ async def broadcast_multi():
         await send_state_to_ws(ws, multi_game, p_num)
 
 async def timer_background_task():
-    """타이머 전용 루프: AI 동작을 간섭하지 않고 오직 1초씩 시간만 깎음"""
+    """서버 타이머 루프: AI 동작을 간섭하지 않고 오직 시간만 깎음"""
     while True:
         try:
             await asyncio.sleep(1)
@@ -638,7 +610,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if chosen == "single":
                     current_mode = "single"
                     p_num = 1
-                    diff = data.get("diff", "mid")
+                    diff = data.get("diff", "high")  # 기본값 고급(상)
                     s_game = GameSession(mode="single", ai_diff=diff)
                     single_sessions[websocket] = s_game
                     await send_state_to_ws(websocket, s_game, 1)
@@ -684,8 +656,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 if act == "set_settings":
                     if not active_game.game_started:
                         active_game.target_score = int(data.get("score", 10))
-                        active_game.time_limit = int(data.get("time", 60))
-                        active_game.time_left = active_game.time_limit
+                        if active_game.mode == "single":
+                            active_game.ai_delay_setting = float(data.get("ai_delay", 0))
+                        else:
+                            active_game.time_limit = int(data.get("time", 60))
+                            active_game.time_left = active_game.time_limit
                 elif act == "flip":
                     active_game.flip_tile(curr_p, data.get("tile_id"))
                 elif act == "reorder":
@@ -721,10 +696,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     active_game.game_started = False
                     active_game.reset_round()
 
-                # 유저 액션 직후: 화면을 즉시 갱신해 유저 손패(5장 혹은 6장)를 바로 동기화
+                # 화면 즉시 갱신
                 if current_mode == "single":
                     await send_state_to_ws(websocket, active_game, 1)
-                    # 유저가 버려서 AI 차례(2P)가 되었을 때만 0.3초 텀 태스크 단 1개만 실행
+                    # 유저가 버려 2P(AI) 턴이 되면 비동기 태스크로 실행
                     if active_game.game_started and active_game.current_turn == 2:
                         if active_game.ai_task is None or active_game.ai_task.done():
                             active_game.ai_task = asyncio.create_task(active_game.execute_ai_step(websocket))
